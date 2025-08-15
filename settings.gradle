@@ -1,0 +1,2 @@
+rootProject.name = "ycsb-redis"
+include("core")
