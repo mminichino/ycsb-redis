@@ -1,3 +1,6 @@
+import java.nio.file.Files
+import java.nio.file.Paths
+
 plugins {
     id 'java'
     id 'java-library'
@@ -5,80 +8,65 @@ plugins {
     id 'application'
 }
 
-group = 'site.ycsb'
-version = '2.0.7-2'
+group = 'com.redislabs.ycsb'
+version = '1.0.0'
 
-allprojects {
-    repositories {
-        mavenCentral()
-    }
+repositories {
+    mavenCentral()
 }
 
 dependencies {
-    implementation("org.apache.htrace:htrace-core4:4.1.0-incubating")
-
-    implementation("com.fasterxml.jackson.core:jackson-annotations:2.16.0")
-    implementation("com.fasterxml.jackson.core:jackson-core:2.16.0")
-    implementation("com.fasterxml.jackson.core:jackson-databind:2.16.0")
-
-    implementation("org.apache.commons:commons-math3:3.6.1")
-    implementation("org.apache.commons:commons-lang3:3.18.0")
-
-    implementation("redis.clients:jedis:6.1.0")
-
-    implementation("io.projectreactor:reactor-core:3.4.18")
-    implementation("io.projectreactor.addons:reactor-extra:3.4.8")
-    implementation("io.projectreactor.addons:reactor-adapter:3.4.8")
-    implementation("io.reactivex:rxjava-reactive-streams:1.2.1")
-
-    implementation("ch.qos.logback:logback-classic:1.5.18")
-    implementation("com.google.code.gson:gson:2.10.1")
-
-    implementation("commons-cli:commons-cli:1.6.0")
-
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
-
-    implementation("org.hdrhistogram:HdrHistogram:2.1.12")
-
-    testImplementation("org.testng:testng:7.9.0")
-
-    implementation("com.google.collections:google-collections:1.0")
-    implementation("org.slf4j:slf4j-api:2.0.10")
+    implementation 'com.codelry.util.ycsb:ycsb-core:0.18.1'
+    implementation 'com.codelry.util:restfull-core:1.0.2'
+    implementation 'com.fasterxml.jackson.core:jackson-core:2.19.2'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.19.2'
+    implementation 'io.lettuce:lettuce-core:6.8.0.RELEASE'
+    testImplementation platform('org.junit:junit-bom:5.10.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
 }
 
 java {
     toolchain {
-        sourceCompatibility = JavaLanguageVersion.of(11)
+        languageVersion = JavaLanguageVersion.of(17)
     }
 }
 
-tasks.withType(JavaCompile).configureEach {
-    options.encoding = "UTF-8"
-}
-
-tasks.withType(Javadoc).configureEach {
-    options.encoding = "UTF-8"
-    def std = options as StandardJavadocDocletOptions
-    std.tags(
-            'apiNote:a:"API Note:"',
-            'implSpec:a:"Implementation Requirements:"',
-            'implNote:a:"Implementation Note:"'
-    )
-    std.addBooleanOption('Xdoclint:none', true)
-    std.addBooleanOption('html5', true)
+tasks.compileJava {
+    options.release.set(8)
 }
 
 tasks.test {
-    useTestNG()
-    testLogging {
-        events("failed", "skipped")
+    useJUnitPlatform()
+}
+
+tasks.withType(Test).configureEach {
+    doFirst {
+        def envFile = file('.env')
+        if (envFile.exists()) {
+            Files.readAllLines(Paths.get(envFile.toURI())).each { line ->
+                if (line && !line.startsWith('#')) {
+                    def parts = line.split('=', 2)
+                    if (parts.length == 2) {
+                        environment parts[0].trim(), parts[1].trim()
+                    }
+                }
+            }
+        }
+    }
+}
+
+sourceSets {
+    test {
+        resources {
+            srcDir 'src/test/conf'
+            include '**/*'
+        }
     }
 }
 
 application {
     mainClass = 'site.ycsb.Client'
-    applicationDistribution.from("src/main/resources/") {
+    applicationDistribution.from("src/main/conf/") {
         into "conf"
     }
 }
@@ -90,15 +78,3 @@ tasks.named("startScripts") {
 tasks.named("distTar") {
     compression = Compression.GZIP
 }
-
-//tasks.register("stageDependencies", Copy) {
-//    description = "Stages runtime dependencies"
-//    from(configurations.runtimeClasspath)
-//    into(layout.buildDirectory.dir("dependencies"))
-//}
-//
-//gradle.taskGraph.whenReady { graph ->
-//    if (project.hasProperty("sourceRun") && graph.hasTask(":core:build")) {
-//        tasks.build.finalizedBy(tasks.named("stageDependencies"))
-//    }
-//}
