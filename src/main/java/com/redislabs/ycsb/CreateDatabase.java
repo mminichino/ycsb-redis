@@ -1,50 +1,43 @@
 package com.redislabs.ycsb;
 
+import com.codelry.util.ycsb.TestSetup;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Properties;
 
 import com.codelry.util.rest.REST;
 import com.codelry.util.rest.exceptions.HttpResponseException;
 
+import com.redis.lettucemod.RedisModulesClient;
+import com.redis.lettucemod.api.StatefulRedisModulesConnection;
+import com.redis.lettucemod.api.sync.RedisModulesCommands;
+import com.redis.lettucemod.search.CreateOptions;
+import com.redis.lettucemod.search.Field;
+import com.redis.lettucemod.search.NumericField;
+import io.lettuce.core.RedisCommandExecutionException;
+import io.lettuce.core.RedisURI;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
-public final class CreateDatabase {
+public final class CreateDatabase extends TestSetup {
 
-  private static final Logger logger = LoggerFactory.getLogger(CreateDatabase.class);
+  public static final Logger logger = LoggerFactory.getLogger(CreateDatabase.class);
 
-  private static final String PROPERTY_FILE = "db.properties";
+  public static final ObjectMapper mapper = new ObjectMapper();
 
-  private static final ObjectMapper mapper = new ObjectMapper();
-
-  public static void main(String[] args) {
-    ClassLoader classloader = RedisClientBinding.class.getClassLoader();
-    Properties properties = new Properties();
-
-    try (InputStream in = classloader.getResourceAsStream(PROPERTY_FILE)) {
-      if (in != null) {
-        logger.debug("Loading properties from resource {}", PROPERTY_FILE);
-        properties.load(in);
-      } else {
-        logger.warn("Resource {} not found on classpath", PROPERTY_FILE);
-      }
-    } catch (IOException e) {
-      logger.error("Error loading properties: {}", e.getMessage(), e);
-      System.exit(1);
-    }
-
+  @Override
+  public void testSetup(Properties properties) {
     try {
       createDatabase(properties);
+      createIndex(properties);
     } catch (Exception e) {
-      System.err.println("Error: " + e);
-      e.printStackTrace(System.err);
+      logger.error(e.getMessage(), e);
       System.exit(1);
     }
   }
@@ -55,14 +48,22 @@ public final class CreateDatabase {
     String username = redisConfig.getRedisEnterpriseUserName();
     String password = redisConfig.getRedisEnterprisePassword();
     int port = redisConfig.getRedisEnterpriseApiPort();
+    int dbPort = redisConfig.getRedisPort();
     int memory = redisConfig.getRedisEnterpriseMemory();
     int shards = redisConfig.getRedisEnterpriseShards();
+    boolean enterpriseDb = redisConfig.isEnterpriseDb();
+
+    if (!enterpriseDb) {
+      logger.info("Skipping database creation on {}:{}", hostname, port);
+      return;
+    }
+
     REST client = new REST(hostname, username, password, true, port);
 
     logger.info("Creating database on {}:{} as user {}", hostname, port, username);
 
     String endpoint = "/v1/bdbs";
-    ObjectNode body = getSettings(memory, shards);
+    ObjectNode body = getSettings(dbPort, memory, shards);
     try {
       client.post(endpoint, body).validate().json();
       String dbGetEndpoint = "/v1/bdbs/1";
@@ -70,6 +71,7 @@ public final class CreateDatabase {
         throw new RuntimeException("timeout waiting for database creation to complete");
       }
     } catch (HttpResponseException e) {
+      if (client.responseCode == 409) return;
       logger.error("Error creating database: response code: {} body: {}",
           client.responseCode,
           new String(client.responseBody, StandardCharsets.UTF_8));
@@ -77,12 +79,79 @@ public final class CreateDatabase {
     }
   }
 
-  private static ObjectNode getSettings(int memory, int shards) {
+  public static void createIndex(Properties properties) {
+    RedisConfig redisConfig = new RedisConfig(properties);
+    boolean enterpriseDb = redisConfig.isEnterpriseDb();
+
+    if (!enterpriseDb) {
+      logger.info("Skipping index creation");
+      return;
+    }
+
+    RedisURI redisURI = redisConfig.getRedisURI();
+    RedisModulesClient modulesClient = RedisModulesClient.create(redisURI);
+    StatefulRedisModulesConnection<String, String> modulesConnection = modulesClient.connect();
+    RedisModulesCommands<String, String> modulesCommands = modulesConnection.sync();
+    String searchStrategy = redisConfig.getSearchStrategy();
+    String jsonIndexName = redisConfig.getIndexJson();
+    String hashIndexName = redisConfig.getIndexHash();
+
+    try {
+      if (searchStrategy.equals("JSON")) {
+        NumericField<String> idJsonField = Field.numeric("$.id").as("id").build();
+
+        CreateOptions<String, String> optionsJson = CreateOptions.<String, String>builder()
+            .on(CreateOptions.DataType.JSON)
+            .prefix("user")
+            .build();
+
+        String resultJson = ftCreateSafe(modulesCommands, jsonIndexName, optionsJson, idJsonField);
+        if (resultJson.equals("OK")) {
+          logger.info("JSON Index {} created", jsonIndexName);
+        } else {
+          logger.error("Error creating json index {}: {}", jsonIndexName, resultJson);
+          System.exit(1);
+        }
+      } else if (searchStrategy.equals("HASH")) {
+        NumericField<String> idHashField = Field.numeric("id").as("id").build();
+
+        CreateOptions<String, String> optionsHash = CreateOptions.<String, String>builder()
+            .on(CreateOptions.DataType.HASH)
+            .prefix("user")
+            .build();
+
+        String resultHash = ftCreateSafe(modulesCommands, hashIndexName, optionsHash, idHashField);
+        if (resultHash.equals("OK")) {
+          logger.info("Hash Index {} created", hashIndexName);
+        } else {
+          logger.error("Error creating hash index {}: {}", hashIndexName, resultHash);
+          System.exit(1);
+        }
+      }
+    } catch (RedisCommandExecutionException r) {
+      if (r.getMessage().contains("Index already exists")) return;
+      logger.error("Redis error creating index: {}", r.getMessage(), r);
+      System.exit(1);
+    } catch (Exception e) {
+      logger.error("Error creating index: {}", e.getMessage(), e);
+      System.exit(1);
+    }
+  }
+
+  @SafeVarargs
+  private static String ftCreateSafe(RedisModulesCommands<String, String> commands,
+                                          String index,
+                                          CreateOptions<String, String> options,
+                                          Field<String>... fields) {
+    return commands.ftCreate(index, options, fields);
+  }
+
+  public static ObjectNode getSettings(int port, int memory, int shards) {
     ObjectNode body = mapper.createObjectNode();
 
     body.put("memory_size", memory);
     body.put("name", "ycsb");
-    body.put("port", 12000);
+    body.put("port", port);
     body.put("proxy_policy", "all-nodes");
     body.put("shards_count", shards);
     body.put("type", "redis");
@@ -116,7 +185,7 @@ public final class CreateDatabase {
     return body;
   }
 
-  private CreateDatabase() {
+  public CreateDatabase() {
     super();
   }
 }

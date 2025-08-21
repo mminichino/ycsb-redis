@@ -21,6 +21,7 @@ dependencies {
     implementation 'com.fasterxml.jackson.core:jackson-core:2.19.2'
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.19.2'
     implementation 'io.lettuce:lettuce-core:6.8.0.RELEASE'
+    implementation 'com.redis:lettucemod:4.4.0'
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
 }
@@ -37,6 +38,18 @@ tasks.compileJava {
 
 tasks.test {
     useJUnitPlatform()
+}
+
+tasks.register('updateAppVersionProperties') {
+    doLast {
+        def appPropertiesFile = file("src/main/resources/project.properties")
+        def properties = new Properties()
+        if (appPropertiesFile.exists()) {
+            appPropertiesFile.withInputStream { properties.load(it) }
+        }
+        properties.setProperty("version", project.version.toString())
+        appPropertiesFile.withWriter { properties.store(it, null) }
+    }
 }
 
 tasks.withType(Test).configureEach {

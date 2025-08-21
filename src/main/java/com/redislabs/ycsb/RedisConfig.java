@@ -13,6 +13,11 @@ public class RedisConfig {
   private int redisDatabase;
   private boolean sslEnabled;
 
+  private String searchStrategy;
+  private String indexHash;
+  private String indexJson;
+  private String indexSet;
+
   private boolean enterpriseDb;
   private String redisEnterpriseUserName;
   private String redisEnterprisePassword;
@@ -26,6 +31,11 @@ public class RedisConfig {
   public static final String REDIS_PASSWORD = "redis.password";
   public static final String REDIS_DATABASE = "redis.database";
   public static final String REDIS_SSL = "redis.ssl";
+
+  public static final String REDIS_SEARCH_STRATEGY = "redis.search.strategy";
+  public static final String REDIS_INDEX_HASH = "redis.index.hash";
+  public static final String REDIS_INDEX_JSON = "redis.index.json";
+  public static final String REDIS_INDEX_SET = "redis.index.set";
 
   public static final String REDIS_ENTERPRISE = "redis.enterprise";
   public static final String REDIS_ENTERPRISE_USERNAME = "redis.enterprise.username";
@@ -65,6 +75,11 @@ public class RedisConfig {
     this.redisPort = Integer.parseInt(properties.getProperty(REDIS_PORT, "6379"));
     this.redisDatabase = Integer.parseInt(properties.getProperty(REDIS_DATABASE, "0"));
     this.sslEnabled = Boolean.parseBoolean(properties.getProperty(REDIS_SSL, "false"));
+
+    this.searchStrategy = properties.getProperty(REDIS_SEARCH_STRATEGY, "HASH");
+    this.indexHash = properties.getProperty(REDIS_INDEX_HASH, "id_hash_index");
+    this.indexJson = properties.getProperty(REDIS_INDEX_JSON, "id_json_index");
+    this.indexSet = properties.getProperty(REDIS_INDEX_SET, "_key_index");
 
     this.enterpriseDb = Boolean.parseBoolean(properties.getProperty(REDIS_ENTERPRISE, "false"));
     this.redisEnterpriseUserName = properties.getProperty(REDIS_ENTERPRISE_USERNAME);
@@ -128,6 +143,22 @@ public class RedisConfig {
 
   public boolean isEnterpriseDb() {
     return enterpriseDb;
+  }
+
+  public String getSearchStrategy() {
+    return searchStrategy;
+  }
+
+  public String getIndexHash() {
+    return indexHash;
+  }
+
+  public String getIndexJson() {
+    return indexJson;
+  }
+
+  public String getIndexSet() {
+    return indexSet;
   }
 
   public String getRedisEnterpriseUserName() {
