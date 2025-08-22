@@ -1,19 +1,16 @@
 package com.redislabs.ycsb;
 
+import com.codelry.util.ycsb.RunBenchmark;
 import org.junit.jupiter.api.Test;
-
-import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
-class TestRunClean {
+class TestWorkloadB {
 
   @Test
-  void runTestClean() {
-    Properties properties = new Properties();
-
+  void runWorkloadB() {
     assertDoesNotThrow(() ->
-        new RunClean().testClean(properties)
+        RunBenchmark.main(new String[] { "-w", "b" })
     );
   }
 }

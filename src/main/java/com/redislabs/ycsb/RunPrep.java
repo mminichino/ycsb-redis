@@ -15,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Properties;
+import java.util.Scanner;
 
 public final class RunPrep extends TestSetup {
 
@@ -23,15 +24,37 @@ public final class RunPrep extends TestSetup {
   @Override
   public void testSetup(Properties properties) {
     try {
-      testPrep(properties);
+      RedisConfig redisConfig = new RedisConfig(properties);
+      requestConfirmation(redisConfig);
+      testPrep(redisConfig);
     } catch (Exception e) {
       logger.error(e.getMessage(), e);
       System.exit(1);
     }
   }
 
-  public static void testPrep(Properties properties) {
-    RedisConfig redisConfig = new RedisConfig(properties);
+  public void requestConfirmation(RedisConfig redisConfig) {
+    if (System.getProperty("ycsb.run.confirm") != null || redisConfig.getConfirmationResponse().equals("yes")) {
+      return;
+    }
+
+    Scanner scanner = new Scanner(System.in);
+
+    System.out.println("WARNING: This will flush all data in your Redis Database.");
+    System.out.print("Proceed with benchmark run? (y/n): ");
+    String response = scanner.nextLine().toLowerCase();
+
+    if (response.equals("y") || response.equals("yes")) {
+      System.out.println();
+      System.setProperty("ycsb.run.confirm", "true");
+      scanner.close();
+    } else {
+      System.out.println("Benchmark run cancelled.");
+      System.exit(0);
+    }
+  }
+
+  public static void testPrep(RedisConfig redisConfig) {
     boolean enterpriseDb = redisConfig.isEnterpriseDb();
 
     RedisURI redisURI = redisConfig.getRedisURI();

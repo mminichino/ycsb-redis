@@ -6,6 +6,7 @@ plugins {
     id 'java-library'
     id 'distribution'
     id 'application'
+    id 'org.jreleaser' version '1.19.0'
 }
 
 group = 'com.redislabs.ycsb'
@@ -16,7 +17,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.codelry.util.ycsb:ycsb-core:0.18.1'
+    implementation 'com.codelry.util.ycsb:ycsb-core:0.18.2'
     implementation 'com.codelry.util:restfull-core:1.0.2'
     implementation 'com.fasterxml.jackson.core:jackson-core:2.19.2'
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.19.2'
@@ -38,6 +39,15 @@ tasks.compileJava {
 
 tasks.test {
     useJUnitPlatform()
+}
+
+tasks.register('printTestClasspath') {
+    doLast {
+        println "Test Classpath:"
+        sourceSets.test.runtimeClasspath.each { file ->
+            println file.absolutePath
+        }
+    }
 }
 
 tasks.register('updateAppVersionProperties') {
@@ -77,17 +87,92 @@ sourceSets {
     }
 }
 
+tasks.register('createDatabaseScript', CreateStartScripts) {
+    outputDir = file("${layout.buildDirectory}/install/${project.name}/bin")
+    mainClass = 'com.redislabs.ycsb.CreateDatabase'
+    applicationName = 'setup'
+    classpath = tasks.named('startScripts').get().classpath
+    doLast {
+        def unixScript = file("${outputDir}/setup")
+        unixScript.text = unixScript.text.replace(
+                'CLASSPATH=$APP_HOME/lib',
+                'CLASSPATH=$APP_HOME/conf:$APP_HOME/lib'
+        )
+
+        def windowsScript = file("$outputDir/setup.bat")
+        windowsScript.text = windowsScript.text.replace(
+                'set CLASSPATH=%APP_HOME%\\lib',
+                'set CLASSPATH=%APP_HOME%\\conf;%APP_HOME%\\lib'
+        )
+    }
+}
+
+distributions {
+    main {
+        contents {
+            from(tasks.createDatabaseScript) {
+                into 'bin'
+            }
+        }
+    }
+}
+
 application {
-    mainClass = 'site.ycsb.Client'
+    mainClass = 'com.codelry.util.ycsb.RunBenchmark'
     applicationDistribution.from("src/main/conf/") {
         into "conf"
     }
 }
 
 tasks.named("startScripts") {
-    classpath += files("../conf")
+    doLast {
+        def unixScript = file("${outputDir}/${project.name}")
+        unixScript.text = unixScript.text.replace(
+                'CLASSPATH=$APP_HOME/lib',
+                'CLASSPATH=$APP_HOME/conf:$APP_HOME/lib'
+        )
+
+        def windowsScript = file("$outputDir/${project.name}.bat")
+        windowsScript.text = windowsScript.text.replace(
+                'set CLASSPATH=%APP_HOME%\\lib',
+                'set CLASSPATH=%APP_HOME%\\conf;%APP_HOME%\\lib'
+        )
+    }
 }
 
 tasks.named("distTar") {
     compression = Compression.GZIP
+}
+
+jreleaser {
+    project {
+        name = 'ycsb-redis'
+        description = 'Redis YCSB implementation'
+        website = 'https://github.com/mminichino/ycsb-redis'
+        authors = ['Michael Minichino']
+        license = 'Apache-2.0'
+        copyright = "2025 Michael Minichino"
+    }
+
+    release {
+        github {
+            repoOwner = 'mminichino'
+            name = 'ycsb-redis'
+            branch = 'main'
+            changelog {
+                enabled = false
+            }
+        }
+    }
+
+    distributions {
+        app {
+            distributionType = 'JAVA_BINARY'
+            artifacts {
+                artifact {
+                    path = "build/distributions/{{projectName}}-{{projectVersion}}.zip"
+                }
+            }
+        }
+    }
 }

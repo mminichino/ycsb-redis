@@ -1,13 +1,14 @@
 package com.redislabs.ycsb;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Iterator;
 import java.util.Properties;
+import java.util.StringJoiner;
 
 import com.codelry.util.rest.REST;
 import com.codelry.util.rest.exceptions.HttpResponseException;
@@ -21,23 +22,8 @@ public final class CreateDatabase {
 
   public static final ObjectMapper mapper = new ObjectMapper();
 
-  public static final String PROPERTY_FILE = "db.properties";
-
   public static void main(String[] args) {
-    ClassLoader classloader = RedisClientBinding.class.getClassLoader();
     Properties properties = new Properties();
-
-    try (InputStream in = classloader.getResourceAsStream(PROPERTY_FILE)) {
-      if (in != null) {
-        logger.debug("Loading properties from resource {}", PROPERTY_FILE);
-        properties.load(in);
-      } else {
-        logger.warn("Resource {} not found on classpath", PROPERTY_FILE);
-      }
-    } catch (IOException e) {
-      logger.error("Error loading properties: {}", e.getMessage(), e);
-      System.exit(1);
-    }
 
     try {
       createDatabase(properties);
@@ -49,13 +35,13 @@ public final class CreateDatabase {
 
   public static void createDatabase(Properties properties) {
     RedisConfig redisConfig = new RedisConfig(properties);
-    String hostname = redisConfig.getRedisHost();
+    String hostname = redisConfig.getRedisEnterpriseApiHost();
     String username = redisConfig.getRedisEnterpriseUserName();
     String password = redisConfig.getRedisEnterprisePassword();
     String persistence = redisConfig.getDataPersistence();
     int port = redisConfig.getRedisEnterpriseApiPort();
     int dbPort = redisConfig.getRedisPort();
-    int memory = redisConfig.getRedisEnterpriseMemory();
+    long memory = redisConfig.getRedisEnterpriseMemory();
     int shards = redisConfig.getRedisEnterpriseShards();
     boolean enterpriseDb = redisConfig.isEnterpriseDb();
 
@@ -69,23 +55,42 @@ public final class CreateDatabase {
     logger.info("Creating database on {}:{} as user {}", hostname, port, username);
 
     String endpoint = "/v1/bdbs";
+    String dbGetEndpoint = "/v1/bdbs/1";
     ObjectNode body = getSettings(dbPort, memory, shards, persistence);
     try {
       client.post(endpoint, body).validate().json();
-      String dbGetEndpoint = "/v1/bdbs/1";
       if (!client.waitForJsonValue(dbGetEndpoint, "status", "active", 120)) {
         throw new RuntimeException("timeout waiting for database creation to complete");
       }
     } catch (HttpResponseException e) {
-      if (client.responseCode == 409) return;
-      logger.error("Error creating database: response code: {} body: {}",
-          client.responseCode,
-          new String(client.responseBody, StandardCharsets.UTF_8));
+      if (client.responseCode != 409) {
+        logger.error("Error creating database: response code: {} body: {}", client.responseCode, new String(client.responseBody, StandardCharsets.UTF_8));
+        System.exit(1);
+      } else {
+        logger.info("Database already exists");
+      }
+    }
+
+    try {
+      JsonNode db = client.get(dbGetEndpoint).validate().json();
+      for (Iterator<JsonNode> it = db.withArrayProperty("endpoints").elements(); it.hasNext(); ) {
+        JsonNode node = it.next();
+        StringJoiner addresses = new StringJoiner(",");
+        for (Iterator<JsonNode> addrs = node.withArrayProperty("addr").elements(); addrs.hasNext(); ) {
+          JsonNode addr = addrs.next();
+          addresses.add(addr.asText());
+        }
+        String dnsName = node.get("dns_name").asText();
+        String endpointPort = node.get("port").asText();
+        logger.info("Endpoint: {}:{} ({})", dnsName, endpointPort, addresses);
+      }
+    } catch (HttpResponseException e) {
+      logger.error("Error getting database endpoints: response code: {} body: {}", client.responseCode, new String(client.responseBody, StandardCharsets.UTF_8));
       System.exit(1);
     }
   }
 
-  public static ObjectNode getSettings(int port, int memory, int shards, String persistence) {
+  public static ObjectNode getSettings(int port, long memory, int shards, String persistence) {
     ObjectNode body = mapper.createObjectNode();
 
     body.put("memory_size", memory);

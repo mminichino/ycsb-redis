@@ -3,9 +3,16 @@ package com.redislabs.ycsb;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.StaticCredentialsProvider;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.Properties;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class RedisConfig {
+  public static final Logger logger = LoggerFactory.getLogger(RedisConfig.class);
+
   private String redisHost;
   private String redisPassword;
   private String redisUsername;
@@ -22,9 +29,12 @@ public class RedisConfig {
   private boolean enterpriseDb;
   private String redisEnterpriseUserName;
   private String redisEnterprisePassword;
+  private String redisEnterpriseApiHost;
   private int redisEnterpriseApiPort;
   private int redisEnterpriseShards;
-  private int redisEnterpriseMemory;
+  private long redisEnterpriseMemory;
+
+  private String confirmationResponse;
 
   public static final String REDIS_HOST = "redis.host";
   public static final String REDIS_PORT = "redis.port";
@@ -42,6 +52,7 @@ public class RedisConfig {
   public static final String REDIS_ENTERPRISE = "redis.enterprise";
   public static final String REDIS_ENTERPRISE_USERNAME = "redis.enterprise.username";
   public static final String REDIS_ENTERPRISE_PASSWORD = "redis.enterprise.password";
+  public static final String REDIS_ENTERPRISE_API_HOST = "redis.enterprise.api.host";
   public static final String REDIS_ENTERPRISE_API_PORT = "redis.enterprise.api.port";
   public static final String REDIS_ENTERPRISE_SHARDS = "redis.enterprise.shards";
   public static final String REDIS_ENTERPRISE_MEMORY = "redis.enterprise.memory";
@@ -56,10 +67,17 @@ public class RedisConfig {
   public static final String REDIS_ENTERPRISE_ENV_VAR = "REDIS_ENTERPRISE";
   public static final String REDIS_ENTERPRISE_USERNAME_ENV_VAR = "REDIS_ENTERPRISE_USERNAME";
   public static final String REDIS_ENTERPRISE_PASSWORD_ENV_VAR = "REDIS_ENTERPRISE_PASSWORD";
+  public static final String REDIS_ENTERPRISE_API_HOST_ENV_VAR = "REDIS_ENTERPRISE_API_HOST";
+
+  public static final String TEST_CONFIRMATION_RESPONSE = "test.confirmation.response";
+
+  public static final String PROPERTY_FILE = "db.properties";
 
   public RedisConfig() {}
 
   public RedisConfig(Properties properties) {
+    properties.putAll(getProperties());
+
     String redisHostEnvVar = System.getenv(REDIS_HOST_ENV_VAR);
     String redisPortEnvVar = System.getenv(REDIS_PORT_ENV_VAR);
     String redisUsernameEnvVar = System.getenv(REDIS_USERNAME_ENV_VAR);
@@ -70,6 +88,7 @@ public class RedisConfig {
     String redisEnterpriseEnvVar = System.getenv(REDIS_ENTERPRISE_ENV_VAR);
     String redisEnterpriseUserNameEnvVar = System.getenv(REDIS_ENTERPRISE_USERNAME_ENV_VAR);
     String redisEnterprisePasswordEnvVar = System.getenv(REDIS_ENTERPRISE_PASSWORD_ENV_VAR);
+    String redisEnterpriseApiHostEnvVar = System.getenv(REDIS_ENTERPRISE_API_HOST_ENV_VAR);
 
     this.redisHost = properties.getProperty(REDIS_HOST, "localhost");
     this.redisPassword = properties.getProperty(REDIS_PASSWORD);
@@ -87,9 +106,12 @@ public class RedisConfig {
     this.enterpriseDb = Boolean.parseBoolean(properties.getProperty(REDIS_ENTERPRISE, "false"));
     this.redisEnterpriseUserName = properties.getProperty(REDIS_ENTERPRISE_USERNAME);
     this.redisEnterprisePassword = properties.getProperty(REDIS_ENTERPRISE_PASSWORD);
+    this.redisEnterpriseApiHost = properties.getProperty(REDIS_ENTERPRISE_API_HOST, "localhost");
     this.redisEnterpriseApiPort = Integer.parseInt(properties.getProperty(REDIS_ENTERPRISE_API_PORT, "9443"));
     this.redisEnterpriseShards = Integer.parseInt(properties.getProperty(REDIS_ENTERPRISE_SHARDS, "1"));
-    this.redisEnterpriseMemory = Integer.parseInt(properties.getProperty(REDIS_ENTERPRISE_MEMORY, "1073741824"));
+    this.redisEnterpriseMemory = Long.parseLong(properties.getProperty(REDIS_ENTERPRISE_MEMORY, "1073741824"));
+
+    this.confirmationResponse = properties.getProperty(TEST_CONFIRMATION_RESPONSE);
 
     if (redisHostEnvVar != null && !redisHostEnvVar.isEmpty()) {
       this.redisHost = redisHostEnvVar;
@@ -118,6 +140,31 @@ public class RedisConfig {
     if (redisEnterprisePasswordEnvVar != null && !redisEnterprisePasswordEnvVar.isEmpty()) {
       this.redisEnterprisePassword = redisEnterprisePasswordEnvVar;
     }
+    if (redisEnterpriseApiHostEnvVar != null && !redisEnterpriseApiHostEnvVar.isEmpty()) {
+      this.redisEnterpriseApiHost = redisEnterpriseApiHostEnvVar;
+    }
+  }
+
+  public Properties getProperties() {
+    ClassLoader classloader = Thread.currentThread().getContextClassLoader();
+    if (classloader == null) {
+      classloader = RedisConfig.class.getClassLoader();
+    }
+    Properties properties = new Properties();
+
+    try (InputStream in = classloader.getResourceAsStream(PROPERTY_FILE)) {
+      if (in != null) {
+        logger.debug("Loading properties from resource {}", PROPERTY_FILE);
+        properties.load(in);
+      } else {
+        logger.warn("Resource {} not found on classpath", PROPERTY_FILE);
+      }
+    } catch (IOException e) {
+      logger.error("Error loading properties: {}", e.getMessage(), e);
+      System.exit(1);
+    }
+
+    return properties;
   }
 
   public String getRedisHost() {
@@ -176,6 +223,10 @@ public class RedisConfig {
     return redisEnterprisePassword;
   }
 
+  public String getRedisEnterpriseApiHost() {
+    return redisEnterpriseApiHost;
+  }
+
   public int getRedisEnterpriseApiPort() {
     return redisEnterpriseApiPort;
   }
@@ -184,8 +235,12 @@ public class RedisConfig {
     return redisEnterpriseShards;
   }
 
-  public int getRedisEnterpriseMemory() {
+  public long getRedisEnterpriseMemory() {
     return redisEnterpriseMemory;
+  }
+
+  public String getConfirmationResponse() {
+    return confirmationResponse != null ? confirmationResponse : "no";
   }
 
   public RedisURI getRedisURI() {
