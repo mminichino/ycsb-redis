@@ -88,7 +88,7 @@ sourceSets {
 }
 
 tasks.register('createDatabaseScript', CreateStartScripts) {
-    outputDir = file("${layout.buildDirectory}/install/${project.name}/bin")
+    outputDir = file("build/generated-scripts")
     mainClass = 'com.redislabs.ycsb.CreateDatabase'
     applicationName = 'setup'
     classpath = tasks.named('startScripts').get().classpath
