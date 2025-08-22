@@ -12,6 +12,7 @@ public class RedisConfig {
   private int redisPort;
   private int redisDatabase;
   private boolean sslEnabled;
+  private String dataPersistence;
 
   private String searchStrategy;
   private String indexHash;
@@ -31,6 +32,7 @@ public class RedisConfig {
   public static final String REDIS_PASSWORD = "redis.password";
   public static final String REDIS_DATABASE = "redis.database";
   public static final String REDIS_SSL = "redis.ssl";
+  public static final String REDIS_DATA_PERSISTENCE = "redis.data.persistence";
 
   public static final String REDIS_SEARCH_STRATEGY = "redis.search.strategy";
   public static final String REDIS_INDEX_HASH = "redis.index.hash";
@@ -75,6 +77,7 @@ public class RedisConfig {
     this.redisPort = Integer.parseInt(properties.getProperty(REDIS_PORT, "6379"));
     this.redisDatabase = Integer.parseInt(properties.getProperty(REDIS_DATABASE, "0"));
     this.sslEnabled = Boolean.parseBoolean(properties.getProperty(REDIS_SSL, "false"));
+    this.dataPersistence = properties.getProperty(REDIS_DATA_PERSISTENCE, "AOF");
 
     this.searchStrategy = properties.getProperty(REDIS_SEARCH_STRATEGY, "HASH");
     this.indexHash = properties.getProperty(REDIS_INDEX_HASH, "id_hash_index");
@@ -139,6 +142,10 @@ public class RedisConfig {
 
   public boolean isSslEnabled() {
     return sslEnabled;
+  }
+
+  public String getDataPersistence() {
+    return dataPersistence;
   }
 
   public boolean isEnterpriseDb() {

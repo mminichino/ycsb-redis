@@ -10,12 +10,12 @@ import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
-class TestDeleteDatabase {
-  public static final Logger logger = LoggerFactory.getLogger(TestDeleteDatabase.class);
+class TestRunClean {
+  public static final Logger logger = LoggerFactory.getLogger(TestRunClean.class);
   public static final String PROPERTY_FILE = "db.properties";
 
   @Test
-  void runDeleteDatabase() {
+  void runTestClean() {
     ClassLoader classloader = RedisClientBinding.class.getClassLoader();
     Properties properties = new Properties();
 
@@ -32,7 +32,7 @@ class TestDeleteDatabase {
     }
 
     assertDoesNotThrow(() ->
-        new DeleteDatabase().testClean(properties)
+        new RunClean().testClean(properties)
     );
   }
 }
