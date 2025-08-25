@@ -43,7 +43,9 @@ public final class CreateDatabase {
     int dbPort = redisConfig.getRedisPort();
     long memory = redisConfig.getRedisEnterpriseMemory();
     int shards = redisConfig.getRedisEnterpriseShards();
+    String placement = redisConfig.getRedisEnterpriseShardPlacement();
     boolean enterpriseDb = redisConfig.isEnterpriseDb();
+    boolean replication = redisConfig.getRedisEnterpriseReplication();
 
     if (!enterpriseDb) {
       logger.info("Skipping database creation on {}:{}", hostname, port);
@@ -56,7 +58,7 @@ public final class CreateDatabase {
 
     String endpoint = "/v1/bdbs";
     String dbGetEndpoint = "/v1/bdbs/1";
-    ObjectNode body = getSettings(dbPort, memory, shards, persistence);
+    ObjectNode body = getSettings(dbPort, memory, shards, placement, persistence, replication);
     try {
       client.post(endpoint, body).validate().json();
       if (!client.waitForJsonValue(dbGetEndpoint, "status", "active", 120)) {
@@ -90,7 +92,7 @@ public final class CreateDatabase {
     }
   }
 
-  public static ObjectNode getSettings(int port, long memory, int shards, String persistence) {
+  public static ObjectNode getSettings(int port, long memory, int shards, String placement, String persistence, boolean replication) {
     ObjectNode body = mapper.createObjectNode();
 
     body.put("memory_size", memory);
@@ -101,7 +103,7 @@ public final class CreateDatabase {
     body.put("type", "redis");
     body.put("uid", 1);
 
-    switch (persistence) {
+    switch (persistence.toUpperCase()) {
       case "AOF":
         body.put("data_persistence", "aof");
         break;
@@ -134,6 +136,11 @@ public final class CreateDatabase {
 
     if (shards > 1) {
       body.put("sharding", true);
+      if (placement.equalsIgnoreCase("SPARSE")) {
+          body.put("shards_placement", "sparse");
+      }  else {
+          body.put("shards_placement", "dense");
+      }
       ArrayNode shardKeyRegex = new ArrayNode(mapper.getNodeFactory());
       ObjectNode withHashTag = mapper.createObjectNode();
       withHashTag.put("regex", ".*\\{(?<tag>.*)\\}.*");
@@ -142,6 +149,10 @@ public final class CreateDatabase {
       shardKeyRegex.add(withHashTag);
       shardKeyRegex.add(withoutHashTag);
       body.set("shard_key_regex", shardKeyRegex);
+    }
+
+    if (replication) {
+        body.put("replication", true);
     }
 
     return body;
