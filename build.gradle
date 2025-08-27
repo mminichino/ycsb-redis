@@ -88,18 +88,38 @@ sourceSets {
 }
 
 tasks.register('createDatabaseScript', CreateStartScripts) {
-    outputDir = file("build/generated-scripts")
+    outputDir = file("build/generated-scripts/create-db")
     mainClass = 'com.redislabs.ycsb.CreateDatabase'
-    applicationName = 'setup'
+    applicationName = 'create-db'
     classpath = tasks.named('startScripts').get().classpath
     doLast {
-        def unixScript = file("${outputDir}/setup")
+        def unixScript = file("${outputDir}/create-db")
         unixScript.text = unixScript.text.replace(
                 'CLASSPATH=$APP_HOME/lib',
                 'CLASSPATH=$APP_HOME/conf:$APP_HOME/lib'
         )
 
-        def windowsScript = file("$outputDir/setup.bat")
+        def windowsScript = file("$outputDir/create-db.bat")
+        windowsScript.text = windowsScript.text.replace(
+                'set CLASSPATH=%APP_HOME%\\lib',
+                'set CLASSPATH=%APP_HOME%\\conf;%APP_HOME%\\lib'
+        )
+    }
+}
+
+tasks.register('deleteDatabaseScript', CreateStartScripts) {
+    outputDir = file("build/generated-scripts/delete-db")
+    mainClass = 'com.redislabs.ycsb.DeleteDatabase'
+    applicationName = 'delete-db'
+    classpath = tasks.named('startScripts').get().classpath
+    doLast {
+        def unixScript = file("${outputDir}/delete-db")
+        unixScript.text = unixScript.text.replace(
+                'CLASSPATH=$APP_HOME/lib',
+                'CLASSPATH=$APP_HOME/conf:$APP_HOME/lib'
+        )
+
+        def windowsScript = file("$outputDir/delete-db.bat")
         windowsScript.text = windowsScript.text.replace(
                 'set CLASSPATH=%APP_HOME%\\lib',
                 'set CLASSPATH=%APP_HOME%\\conf;%APP_HOME%\\lib'
@@ -111,6 +131,9 @@ distributions {
     main {
         contents {
             from(tasks.createDatabaseScript) {
+                into 'bin'
+            }
+            from(tasks.deleteDatabaseScript) {
                 into 'bin'
             }
         }

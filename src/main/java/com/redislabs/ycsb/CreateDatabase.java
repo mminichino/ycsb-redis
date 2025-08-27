@@ -35,6 +35,7 @@ public final class CreateDatabase {
 
   public static void createDatabase(Properties properties) {
     RedisConfig redisConfig = new RedisConfig(properties);
+    int dBUid = redisConfig.getRedisEnterpriseDbUid();
     String hostname = redisConfig.getRedisEnterpriseApiHost();
     String username = redisConfig.getRedisEnterpriseUserName();
     String password = redisConfig.getRedisEnterprisePassword();
@@ -57,8 +58,8 @@ public final class CreateDatabase {
     logger.info("Creating database on {}:{} as user {}", hostname, port, username);
 
     String endpoint = "/v1/bdbs";
-    String dbGetEndpoint = "/v1/bdbs/1";
-    ObjectNode body = getSettings(dbPort, memory, shards, placement, persistence, replication);
+    String dbGetEndpoint = String.format("/v1/bdbs/%d", dBUid);
+    ObjectNode body = getSettings(dBUid, dbPort, memory, shards, placement, persistence, replication);
     try {
       client.post(endpoint, body).validate().json();
       if (!client.waitForJsonValue(dbGetEndpoint, "status", "active", 120)) {
@@ -92,20 +93,21 @@ public final class CreateDatabase {
     }
   }
 
-  public static ObjectNode getSettings(int port, long memory, int shards, String placement, String persistence, boolean replication) {
+  public static ObjectNode getSettings(int uid, int port, long memory, int shards, String placement, String persistence, boolean replication) {
     ObjectNode body = mapper.createObjectNode();
 
     body.put("memory_size", memory);
     body.put("name", "ycsb");
     body.put("port", port);
-    body.put("proxy_policy", "all-nodes");
+    body.put("proxy_policy", "all-master-shards");
     body.put("shards_count", shards);
     body.put("type", "redis");
-    body.put("uid", 1);
+    body.put("uid", uid);
 
     switch (persistence.toUpperCase()) {
       case "AOF":
         body.put("data_persistence", "aof");
+        body.put("aof_policy", "appendfsync-every-sec");
         break;
       case "SNAPSHOT":
         body.put("data_persistence", "snapshot");

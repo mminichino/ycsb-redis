@@ -27,6 +27,7 @@ public class RedisConfig {
   private String indexSet;
 
   private boolean enterpriseDb;
+  private int redisEnterpriseDbUid;
   private String redisEnterpriseUserName;
   private String redisEnterprisePassword;
   private String redisEnterpriseApiHost;
@@ -52,6 +53,7 @@ public class RedisConfig {
   public static final String REDIS_INDEX_SET = "redis.index.set";
 
   public static final String REDIS_ENTERPRISE = "redis.enterprise";
+  public static final String REDIS_ENTERPRISE_DB_UID = "redis.enterprise.db.uid";
   public static final String REDIS_ENTERPRISE_USERNAME = "redis.enterprise.username";
   public static final String REDIS_ENTERPRISE_PASSWORD = "redis.enterprise.password";
   public static final String REDIS_ENTERPRISE_API_HOST = "redis.enterprise.api.host";
@@ -108,6 +110,7 @@ public class RedisConfig {
     this.indexSet = properties.getProperty(REDIS_INDEX_SET, "_key_index");
 
     this.enterpriseDb = Boolean.parseBoolean(properties.getProperty(REDIS_ENTERPRISE, "false"));
+    this.redisEnterpriseDbUid = Integer.parseInt(properties.getProperty(REDIS_ENTERPRISE_DB_UID, "1"));
     this.redisEnterpriseUserName = properties.getProperty(REDIS_ENTERPRISE_USERNAME);
     this.redisEnterprisePassword = properties.getProperty(REDIS_ENTERPRISE_PASSWORD);
     this.redisEnterpriseApiHost = properties.getProperty(REDIS_ENTERPRISE_API_HOST, "localhost");
@@ -219,6 +222,10 @@ public class RedisConfig {
 
   public String getIndexSet() {
     return indexSet;
+  }
+
+  public int getRedisEnterpriseDbUid() {
+    return redisEnterpriseDbUid;
   }
 
   public String getRedisEnterpriseUserName() {
