@@ -41,6 +41,11 @@ public class RedisClientBinding extends DB {
   private static String indexJson;
   private static String indexSet;
 
+  private RedisModulesClient modulesClient;
+  private StatefulRedisModulesConnection<String, String> modulesConnection;
+  private RedisClient redisClient;
+  private StatefulRedisConnection<String, String> connection;
+
   private RecordStore recordStore;
 
   public void init() throws DBException {
@@ -74,8 +79,8 @@ public class RedisClientBinding extends DB {
 
     try {
       if (enterpriseDb) {
-        RedisModulesClient modulesClient = RedisModulesClient.create(redisURI);
-        StatefulRedisModulesConnection<String, String> modulesConnection = modulesClient.connect();
+        modulesClient = RedisModulesClient.create(redisURI);
+        modulesConnection = modulesClient.connect();
         RedisModulesCommands<String, String> modulesCommands = modulesConnection.sync();
         RedisModulesAsyncCommands<String, String> modulesAsyncCommands = modulesConnection.async();
         if (searchStrategy.equals("JSON")) {
@@ -86,8 +91,8 @@ public class RedisClientBinding extends DB {
           recordStore = new HashSearchRecordStore(modulesCommands, modulesAsyncCommands, indexName);
         }
       } else {
-        RedisClient redisClient = RedisClient.create(redisURI);
-        StatefulRedisConnection<String, String> connection = redisClient.connect();
+        redisClient = RedisClient.create(redisURI);
+        connection = redisClient.connect();
         RedisCommands<String, String> syncCommands = connection.sync();
         RedisAsyncCommands<String, String> asyncCommands = connection.async();
         String indexName = indexSet;
@@ -101,6 +106,13 @@ public class RedisClientBinding extends DB {
 
   @Override
   public void cleanup() {
+      if (modulesClient != null) {
+          modulesConnection.close();
+          modulesClient.shutdown();
+      } else if (redisClient != null) {
+          connection.close();
+          redisClient.shutdown();
+      }
   }
 
   @Override
