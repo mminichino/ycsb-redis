@@ -23,6 +23,7 @@ dependencies {
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.19.2'
     implementation 'io.lettuce:lettuce-core:6.8.0.RELEASE'
     implementation 'com.redis:lettucemod:4.4.0'
+    implementation 'org.apache.commons:commons-pool2:2.12.1'
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
 }

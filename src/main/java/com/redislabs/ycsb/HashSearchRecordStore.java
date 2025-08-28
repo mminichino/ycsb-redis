@@ -4,21 +4,30 @@ import com.codelry.util.ycsb.ByteIterator;
 import com.codelry.util.ycsb.Status;
 import com.codelry.util.ycsb.StringByteIterator;
 
+import com.redis.lettucemod.RedisModulesClient;
+import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
 import io.lettuce.core.KeyValue;
+import io.lettuce.core.RedisURI;
 import io.lettuce.core.search.SearchReply;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
+import io.lettuce.core.support.ConnectionPoolSupport;
+import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class HashSearchRecordStore implements RecordStore {
   private static final Logger logger = LoggerFactory.getLogger(HashSearchRecordStore.class);
 
+  private static final GenericObjectPoolConfig<StatefulRedisModulesConnection<String, String>> poolConfig = new GenericObjectPoolConfig<>();
+  private static GenericObjectPool<StatefulRedisModulesConnection<String, String>> pool;
+  private static RedisModulesClient client;
   private final RedisModulesCommands<String, String> mod;
   private final RedisModulesAsyncCommands<String, String> asyncMod;
   private final String INDEX_NAME;
@@ -31,6 +40,33 @@ public class HashSearchRecordStore implements RecordStore {
 
   private String keyNumber(String key) {
     return key.substring(4);
+  }
+
+  @Override
+  public boolean connect(RedisConfig redisConfig) {
+    poolConfig.setMaxTotal(20);           // Maximum number of connections
+    poolConfig.setMaxIdle(10);            // Maximum idle connections
+    poolConfig.setMinIdle(2);             // Minimum idle connections
+    poolConfig.setTestOnBorrow(true);     // Validate connections on borrow
+    poolConfig.setTestOnReturn(true);     // Validate connections on return
+    poolConfig.setTestWhileIdle(true);    // Test idle connections
+    poolConfig.setBlockWhenExhausted(true); // Block when pool is exhausted
+
+    RedisURI redisURI = redisConfig.getRedisURI();
+    client = RedisModulesClient.create(redisURI);
+
+    pool = ConnectionPoolSupport.createGenericObjectPool(
+        client::connect,
+        poolConfig
+    );
+    return true;
+  }
+
+  @Override
+  public boolean disconnect() {
+    pool.close();
+    client.shutdown();
+    return true;
   }
 
   @Override
