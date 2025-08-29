@@ -36,7 +36,7 @@ public class HashSearchRecordStore implements RecordStore {
       THREADS.incrementAndGet();
       if (client == null) {
         logger.debug("Initializing Redis client: datatype: Hash, index: Search");
-        poolConfig.setMaxTotal(8);
+        poolConfig.setMaxTotal(20);
         poolConfig.setMaxIdle(4);
         poolConfig.setMinIdle(2);
         poolConfig.setTestOnBorrow(true);
