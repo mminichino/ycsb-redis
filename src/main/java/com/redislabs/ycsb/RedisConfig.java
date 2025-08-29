@@ -69,6 +69,7 @@ public class RedisConfig {
   public static final String REDIS_PASSWORD_ENV_VAR = "REDIS_PASSWORD";
   public static final String REDIS_DATABASE_ENV_VAR = "REDIS_DATABASE";
   public static final String REDIS_SSL_ENV_VAR = "REDIS_SSL";
+  public static final String REDIS_SEARCH_STRATEGY_ENV_VAR = "REDIS_SEARCH_STRATEGY";
 
   public static final String REDIS_ENTERPRISE_ENV_VAR = "REDIS_ENTERPRISE";
   public static final String REDIS_ENTERPRISE_USERNAME_ENV_VAR = "REDIS_ENTERPRISE_USERNAME";
@@ -90,6 +91,7 @@ public class RedisConfig {
     String redisPasswordEnvVar = System.getenv(REDIS_PASSWORD_ENV_VAR);
     String redisDatabaseEnvVar = System.getenv(REDIS_DATABASE_ENV_VAR);
     String redisSslEnvVar = System.getenv(REDIS_SSL_ENV_VAR);
+    String redisSearchStrategyEnvVar = System.getenv(REDIS_SEARCH_STRATEGY_ENV_VAR);
 
     String redisEnterpriseEnvVar = System.getenv(REDIS_ENTERPRISE_ENV_VAR);
     String redisEnterpriseUserNameEnvVar = System.getenv(REDIS_ENTERPRISE_USERNAME_ENV_VAR);
@@ -139,6 +141,9 @@ public class RedisConfig {
     }
     if (redisSslEnvVar != null && !redisSslEnvVar.isEmpty()) {
       this.sslEnabled = Boolean.parseBoolean(redisSslEnvVar);
+    }
+    if (redisSearchStrategyEnvVar != null && !redisSearchStrategyEnvVar.isEmpty()) {
+      this.searchStrategy = redisSearchStrategyEnvVar;
     }
     if (redisEnterpriseEnvVar != null && !redisEnterpriseEnvVar.isEmpty()) {
       this.enterpriseDb = Boolean.parseBoolean(redisEnterpriseEnvVar);

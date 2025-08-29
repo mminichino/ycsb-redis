@@ -37,8 +37,9 @@ public class HashRecordStore implements RecordStore {
     synchronized (INIT_COORDINATOR) {
       THREADS.incrementAndGet();
       if (client == null) {
-        poolConfig.setMaxTotal(32);
-        poolConfig.setMaxIdle(10);
+        logger.debug("Initializing Redis client: datatype: Hash, index: Set");
+        poolConfig.setMaxTotal(8);
+        poolConfig.setMaxIdle(4);
         poolConfig.setMinIdle(2);
         poolConfig.setTestOnBorrow(true);
         poolConfig.setTestOnReturn(true);
@@ -75,6 +76,7 @@ public class HashRecordStore implements RecordStore {
     synchronized (INIT_COORDINATOR) {
       int count = THREADS.decrementAndGet();
       if (client != null && count == 0) {
+        logger.debug("Shutting down Redis client");
         pool.close();
         client.shutdown();
         pool = null;
