@@ -9,8 +9,7 @@ import java.util.Set;
 import java.util.Vector;
 
 public interface RecordStore {
-    boolean connect(RedisConfig redisConfig);
-    boolean disconnect();
+    void disconnect();
     Status read(String table, String key, Set<String> fields, Map<String, ByteIterator> result);
     Status insert(String table, String key, Map<String, ByteIterator> values);
     Status update(String table, String key, Map<String, ByteIterator> values);

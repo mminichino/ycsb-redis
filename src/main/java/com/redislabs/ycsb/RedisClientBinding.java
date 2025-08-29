@@ -1,13 +1,6 @@
 package com.redislabs.ycsb;
 
 import io.lettuce.core.*;
-import io.lettuce.core.api.async.RedisAsyncCommands;
-import io.lettuce.core.api.sync.RedisCommands;
-import io.lettuce.core.api.StatefulRedisConnection;
-import com.redis.lettucemod.RedisModulesClient;
-import com.redis.lettucemod.api.StatefulRedisModulesConnection;
-import com.redis.lettucemod.api.sync.RedisModulesCommands;
-import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 
 import com.codelry.util.ycsb.ByteIterator;
 import com.codelry.util.ycsb.DB;
@@ -32,24 +25,14 @@ public class RedisClientBinding extends DB {
   private static final Logger logger = LoggerFactory.getLogger(RedisClientBinding.class);
 
   private static final String PROPERTY_FILE = "db.properties";
-  private static final Object INIT_COORDINATOR = new Object();
-
-  private static RedisURI redisURI;
-  private static boolean enterpriseDb;
-  private static String searchStrategy;
-  private static String indexHash;
-  private static String indexJson;
-  private static String indexSet;
-
-  private RedisModulesClient modulesClient;
-  private StatefulRedisModulesConnection<String, String> modulesConnection;
-  private RedisClient redisClient;
-  private StatefulRedisConnection<String, String> connection;
 
   private RecordStore recordStore;
 
   public void init() throws DBException {
-    ClassLoader classloader = RedisClientBinding.class.getClassLoader();
+    ClassLoader classloader = Thread.currentThread().getContextClassLoader();
+    if (classloader == null) {
+      classloader = RedisClientBinding.class.getClassLoader();
+    }
     Properties properties = new Properties();
 
     try (InputStream in = classloader.getResourceAsStream(PROPERTY_FILE)) {
@@ -65,38 +48,19 @@ public class RedisClientBinding extends DB {
 
     properties.putAll(getProperties());
 
-    synchronized (INIT_COORDINATOR) {
-      if (redisURI == null) {
-        RedisConfig redisConfig = new RedisConfig(properties);
-        redisURI = redisConfig.getRedisURI();
-        enterpriseDb = redisConfig.isEnterpriseDb();
-        searchStrategy = redisConfig.getSearchStrategy();
-        indexHash = redisConfig.getIndexHash();
-        indexJson = redisConfig.getIndexJson();
-        indexSet = redisConfig.getIndexSet();
-      }
-    }
+    RedisConfig redisConfig = new RedisConfig(properties);
+    boolean enterpriseDb = redisConfig.isEnterpriseDb();
+    String searchStrategy = redisConfig.getSearchStrategy();
 
     try {
       if (enterpriseDb) {
-        modulesClient = RedisModulesClient.create(redisURI);
-        modulesConnection = modulesClient.connect();
-        RedisModulesCommands<String, String> modulesCommands = modulesConnection.sync();
-        RedisModulesAsyncCommands<String, String> modulesAsyncCommands = modulesConnection.async();
         if (searchStrategy.equals("JSON")) {
-          String indexName = indexJson;
-          recordStore = new JsonRecordStore(modulesCommands, modulesAsyncCommands, indexName);
+          recordStore = new JsonRecordStore(redisConfig);
         } else {
-          String indexName = indexHash;
-          recordStore = new HashSearchRecordStore(modulesCommands, modulesAsyncCommands, indexName);
+          recordStore = new HashSearchRecordStore(redisConfig);
         }
       } else {
-        redisClient = RedisClient.create(redisURI);
-        connection = redisClient.connect();
-        RedisCommands<String, String> syncCommands = connection.sync();
-        RedisAsyncCommands<String, String> asyncCommands = connection.async();
-        String indexName = indexSet;
-        recordStore = new HashRecordStore(syncCommands, asyncCommands, indexName);
+        recordStore = new HashRecordStore(redisConfig);
       }
     } catch (Exception e) {
       logger.error("Error connecting to Redis: {}", e.getMessage());
@@ -106,13 +70,7 @@ public class RedisClientBinding extends DB {
 
   @Override
   public void cleanup() {
-      if (modulesClient != null) {
-          modulesConnection.close();
-          modulesClient.shutdown();
-      } else if (redisClient != null) {
-          connection.close();
-          redisClient.shutdown();
-      }
+    recordStore.disconnect();
   }
 
   @Override
