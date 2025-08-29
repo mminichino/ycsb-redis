@@ -6,7 +6,6 @@ import com.codelry.util.ycsb.StringByteIterator;
 
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
-import io.lettuce.core.RedisURI;
 import io.lettuce.core.search.SearchReply;
 
 import java.util.*;
@@ -14,9 +13,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import io.lettuce.core.support.ConnectionPoolSupport;
 import org.apache.commons.pool2.impl.GenericObjectPool;
-import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,32 +22,21 @@ public class HashSearchRecordStore implements RecordStore {
 
   private static final AtomicInteger THREADS = new AtomicInteger(0);
   private static final Object INIT_COORDINATOR = new Object();
-  private static final GenericObjectPoolConfig<StatefulRedisModulesConnection<String, String>> poolConfig = new GenericObjectPoolConfig<>();
   private static GenericObjectPool<StatefulRedisModulesConnection<String, String>> pool;
   private static RedisModulesClient client;
 
   private final String indexName;
 
-  HashSearchRecordStore(RedisConfig redisConfig) {
+  HashSearchRecordStore(RedisConfig redisConfig, int poolMaxSize) {
     synchronized (INIT_COORDINATOR) {
       THREADS.incrementAndGet();
       if (client == null) {
         logger.debug("Initializing Redis client: datatype: Hash, index: Search");
-        poolConfig.setMaxTotal(20);
-        poolConfig.setMaxIdle(4);
-        poolConfig.setMinIdle(2);
-        poolConfig.setTestOnBorrow(true);
-        poolConfig.setTestOnReturn(true);
-        poolConfig.setTestWhileIdle(true);
-        poolConfig.setBlockWhenExhausted(true);
 
-        RedisURI redisURI = redisConfig.getRedisURI();
-        client = RedisModulesClient.create(redisURI);
+        RedisClientBuilder clientBuilder = new RedisClientBuilder.Builder().redisConfig(redisConfig).build();
 
-        pool = ConnectionPoolSupport.createGenericObjectPool(
-            client::connect,
-            poolConfig
-        );
+        client = clientBuilder.getModulesClient();
+        pool = clientBuilder.getModulesPool(client, poolMaxSize);
       }
     }
 
