@@ -1,13 +1,6 @@
 package com.redislabs.ycsb;
 
 import io.lettuce.core.*;
-import io.lettuce.core.api.async.RedisAsyncCommands;
-import io.lettuce.core.api.sync.RedisCommands;
-import io.lettuce.core.api.StatefulRedisConnection;
-import com.redis.lettucemod.RedisModulesClient;
-import com.redis.lettucemod.api.StatefulRedisModulesConnection;
-import com.redis.lettucemod.api.sync.RedisModulesCommands;
-import com.redis.lettucemod.api.async.RedisModulesAsyncCommands;
 
 import com.codelry.util.ycsb.ByteIterator;
 import com.codelry.util.ycsb.DB;
@@ -32,19 +25,15 @@ public class RedisClientBinding extends DB {
   private static final Logger logger = LoggerFactory.getLogger(RedisClientBinding.class);
 
   private static final String PROPERTY_FILE = "db.properties";
-  private static final Object INIT_COORDINATOR = new Object();
-
-  private static RedisURI redisURI;
-  private static boolean enterpriseDb;
-  private static String searchStrategy;
-  private static String indexHash;
-  private static String indexJson;
-  private static String indexSet;
+  public static final String THREAD_COUNT_PROPERTY = "threadcount";
 
   private RecordStore recordStore;
 
   public void init() throws DBException {
-    ClassLoader classloader = RedisClientBinding.class.getClassLoader();
+    ClassLoader classloader = Thread.currentThread().getContextClassLoader();
+    if (classloader == null) {
+      classloader = RedisClientBinding.class.getClassLoader();
+    }
     Properties properties = new Properties();
 
     try (InputStream in = classloader.getResourceAsStream(PROPERTY_FILE)) {
@@ -60,38 +49,20 @@ public class RedisClientBinding extends DB {
 
     properties.putAll(getProperties());
 
-    synchronized (INIT_COORDINATOR) {
-      if (redisURI == null) {
-        RedisConfig redisConfig = new RedisConfig(properties);
-        redisURI = redisConfig.getRedisURI();
-        enterpriseDb = redisConfig.isEnterpriseDb();
-        searchStrategy = redisConfig.getSearchStrategy();
-        indexHash = redisConfig.getIndexHash();
-        indexJson = redisConfig.getIndexJson();
-        indexSet = redisConfig.getIndexSet();
-      }
-    }
+    RedisConfig redisConfig = new RedisConfig(properties);
+    boolean enterpriseDb = redisConfig.isEnterpriseDb();
+    String searchStrategy = redisConfig.getSearchStrategy();
+    int threadCount = Integer.parseInt(properties.getProperty(THREAD_COUNT_PROPERTY, "32"));
 
     try {
       if (enterpriseDb) {
-        RedisModulesClient modulesClient = RedisModulesClient.create(redisURI);
-        StatefulRedisModulesConnection<String, String> modulesConnection = modulesClient.connect();
-        RedisModulesCommands<String, String> modulesCommands = modulesConnection.sync();
-        RedisModulesAsyncCommands<String, String> modulesAsyncCommands = modulesConnection.async();
         if (searchStrategy.equals("JSON")) {
-          String indexName = indexJson;
-          recordStore = new JsonRecordStore(modulesCommands, modulesAsyncCommands, indexName);
+          recordStore = new JsonRecordStore(redisConfig, threadCount);
         } else {
-          String indexName = indexHash;
-          recordStore = new HashSearchRecordStore(modulesCommands, modulesAsyncCommands, indexName);
+          recordStore = new HashSearchRecordStore(redisConfig, threadCount);
         }
       } else {
-        RedisClient redisClient = RedisClient.create(redisURI);
-        StatefulRedisConnection<String, String> connection = redisClient.connect();
-        RedisCommands<String, String> syncCommands = connection.sync();
-        RedisAsyncCommands<String, String> asyncCommands = connection.async();
-        String indexName = indexSet;
-        recordStore = new HashRecordStore(syncCommands, asyncCommands, indexName);
+        recordStore = new HashRecordStore(redisConfig, threadCount);
       }
     } catch (Exception e) {
       logger.error("Error connecting to Redis: {}", e.getMessage());
@@ -101,6 +72,7 @@ public class RedisClientBinding extends DB {
 
   @Override
   public void cleanup() {
+    recordStore.disconnect();
   }
 
   @Override

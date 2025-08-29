@@ -27,12 +27,16 @@ public class RedisConfig {
   private String indexSet;
 
   private boolean enterpriseDb;
+  private int redisEnterpriseDbUid;
   private String redisEnterpriseUserName;
   private String redisEnterprisePassword;
   private String redisEnterpriseApiHost;
   private int redisEnterpriseApiPort;
   private int redisEnterpriseShards;
+  private String redisEnterpriseShardPlacement;
   private long redisEnterpriseMemory;
+  private boolean redisEnterpriseReplication;
+  private int redisEnterpriseCpuCount;
 
   private String confirmationResponse;
 
@@ -50,12 +54,16 @@ public class RedisConfig {
   public static final String REDIS_INDEX_SET = "redis.index.set";
 
   public static final String REDIS_ENTERPRISE = "redis.enterprise";
+  public static final String REDIS_ENTERPRISE_DB_UID = "redis.enterprise.db.uid";
   public static final String REDIS_ENTERPRISE_USERNAME = "redis.enterprise.username";
   public static final String REDIS_ENTERPRISE_PASSWORD = "redis.enterprise.password";
   public static final String REDIS_ENTERPRISE_API_HOST = "redis.enterprise.api.host";
   public static final String REDIS_ENTERPRISE_API_PORT = "redis.enterprise.api.port";
   public static final String REDIS_ENTERPRISE_SHARDS = "redis.enterprise.shards";
+  public static final String REDIS_ENTERPRISE_SHARD_PLACEMENT = "redis.enterprise.shard.placement";
   public static final String REDIS_ENTERPRISE_MEMORY = "redis.enterprise.memory";
+  public static final String REDIS_ENTERPRISE_REPLICATION = "redis.enterprise.replication";
+  public static final String REDIS_ENTERPRISE_CPU_COUNT = "redis.enterprise.cpu.count";
 
   public static final String REDIS_HOST_ENV_VAR = "REDIS_HOST";
   public static final String REDIS_PORT_ENV_VAR = "REDIS_PORT";
@@ -63,6 +71,7 @@ public class RedisConfig {
   public static final String REDIS_PASSWORD_ENV_VAR = "REDIS_PASSWORD";
   public static final String REDIS_DATABASE_ENV_VAR = "REDIS_DATABASE";
   public static final String REDIS_SSL_ENV_VAR = "REDIS_SSL";
+  public static final String REDIS_SEARCH_STRATEGY_ENV_VAR = "REDIS_SEARCH_STRATEGY";
 
   public static final String REDIS_ENTERPRISE_ENV_VAR = "REDIS_ENTERPRISE";
   public static final String REDIS_ENTERPRISE_USERNAME_ENV_VAR = "REDIS_ENTERPRISE_USERNAME";
@@ -84,6 +93,7 @@ public class RedisConfig {
     String redisPasswordEnvVar = System.getenv(REDIS_PASSWORD_ENV_VAR);
     String redisDatabaseEnvVar = System.getenv(REDIS_DATABASE_ENV_VAR);
     String redisSslEnvVar = System.getenv(REDIS_SSL_ENV_VAR);
+    String redisSearchStrategyEnvVar = System.getenv(REDIS_SEARCH_STRATEGY_ENV_VAR);
 
     String redisEnterpriseEnvVar = System.getenv(REDIS_ENTERPRISE_ENV_VAR);
     String redisEnterpriseUserNameEnvVar = System.getenv(REDIS_ENTERPRISE_USERNAME_ENV_VAR);
@@ -104,12 +114,16 @@ public class RedisConfig {
     this.indexSet = properties.getProperty(REDIS_INDEX_SET, "_key_index");
 
     this.enterpriseDb = Boolean.parseBoolean(properties.getProperty(REDIS_ENTERPRISE, "false"));
+    this.redisEnterpriseDbUid = Integer.parseInt(properties.getProperty(REDIS_ENTERPRISE_DB_UID, "1"));
     this.redisEnterpriseUserName = properties.getProperty(REDIS_ENTERPRISE_USERNAME);
     this.redisEnterprisePassword = properties.getProperty(REDIS_ENTERPRISE_PASSWORD);
     this.redisEnterpriseApiHost = properties.getProperty(REDIS_ENTERPRISE_API_HOST, "localhost");
     this.redisEnterpriseApiPort = Integer.parseInt(properties.getProperty(REDIS_ENTERPRISE_API_PORT, "9443"));
     this.redisEnterpriseShards = Integer.parseInt(properties.getProperty(REDIS_ENTERPRISE_SHARDS, "1"));
+    this.redisEnterpriseShardPlacement = properties.getProperty(REDIS_ENTERPRISE_SHARD_PLACEMENT, "SPARSE");
     this.redisEnterpriseMemory = Long.parseLong(properties.getProperty(REDIS_ENTERPRISE_MEMORY, "1073741824"));
+    this.redisEnterpriseReplication =  Boolean.parseBoolean(properties.getProperty(REDIS_ENTERPRISE_REPLICATION, "false"));
+    this.redisEnterpriseCpuCount = Integer.parseInt(properties.getProperty(REDIS_ENTERPRISE_CPU_COUNT, "8"));
 
     this.confirmationResponse = properties.getProperty(TEST_CONFIRMATION_RESPONSE);
 
@@ -130,6 +144,9 @@ public class RedisConfig {
     }
     if (redisSslEnvVar != null && !redisSslEnvVar.isEmpty()) {
       this.sslEnabled = Boolean.parseBoolean(redisSslEnvVar);
+    }
+    if (redisSearchStrategyEnvVar != null && !redisSearchStrategyEnvVar.isEmpty()) {
+      this.searchStrategy = redisSearchStrategyEnvVar;
     }
     if (redisEnterpriseEnvVar != null && !redisEnterpriseEnvVar.isEmpty()) {
       this.enterpriseDb = Boolean.parseBoolean(redisEnterpriseEnvVar);
@@ -215,6 +232,10 @@ public class RedisConfig {
     return indexSet;
   }
 
+  public int getRedisEnterpriseDbUid() {
+    return redisEnterpriseDbUid;
+  }
+
   public String getRedisEnterpriseUserName() {
     return redisEnterpriseUserName;
   }
@@ -235,8 +256,20 @@ public class RedisConfig {
     return redisEnterpriseShards;
   }
 
+  public String getRedisEnterpriseShardPlacement() {
+      return redisEnterpriseShardPlacement;
+  }
+
   public long getRedisEnterpriseMemory() {
     return redisEnterpriseMemory;
+  }
+
+  public boolean getRedisEnterpriseReplication() {
+      return redisEnterpriseReplication;
+  }
+
+  public int getRedisEnterpriseCpuCount() {
+      return redisEnterpriseCpuCount;
   }
 
   public String getConfirmationResponse() {

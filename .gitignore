@@ -50,3 +50,4 @@ build
 
 # Project files
 .env
+ycsb.log
