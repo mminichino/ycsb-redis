@@ -36,6 +36,7 @@ public class RedisConfig {
   private String redisEnterpriseShardPlacement;
   private long redisEnterpriseMemory;
   private boolean redisEnterpriseReplication;
+  private int redisEnterpriseCpuCount;
 
   private String confirmationResponse;
 
@@ -62,6 +63,7 @@ public class RedisConfig {
   public static final String REDIS_ENTERPRISE_SHARD_PLACEMENT = "redis.enterprise.shard.placement";
   public static final String REDIS_ENTERPRISE_MEMORY = "redis.enterprise.memory";
   public static final String REDIS_ENTERPRISE_REPLICATION = "redis.enterprise.replication";
+  public static final String REDIS_ENTERPRISE_CPU_COUNT = "redis.enterprise.cpu.count";
 
   public static final String REDIS_HOST_ENV_VAR = "REDIS_HOST";
   public static final String REDIS_PORT_ENV_VAR = "REDIS_PORT";
@@ -121,6 +123,7 @@ public class RedisConfig {
     this.redisEnterpriseShardPlacement = properties.getProperty(REDIS_ENTERPRISE_SHARD_PLACEMENT, "SPARSE");
     this.redisEnterpriseMemory = Long.parseLong(properties.getProperty(REDIS_ENTERPRISE_MEMORY, "1073741824"));
     this.redisEnterpriseReplication =  Boolean.parseBoolean(properties.getProperty(REDIS_ENTERPRISE_REPLICATION, "false"));
+    this.redisEnterpriseCpuCount = Integer.parseInt(properties.getProperty(REDIS_ENTERPRISE_CPU_COUNT, "8"));
 
     this.confirmationResponse = properties.getProperty(TEST_CONFIRMATION_RESPONSE);
 
@@ -263,6 +266,10 @@ public class RedisConfig {
 
   public boolean getRedisEnterpriseReplication() {
       return redisEnterpriseReplication;
+  }
+
+  public int getRedisEnterpriseCpuCount() {
+      return redisEnterpriseCpuCount;
   }
 
   public String getConfirmationResponse() {

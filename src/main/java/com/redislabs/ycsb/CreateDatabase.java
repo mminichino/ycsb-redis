@@ -39,14 +39,8 @@ public final class CreateDatabase {
     String hostname = redisConfig.getRedisEnterpriseApiHost();
     String username = redisConfig.getRedisEnterpriseUserName();
     String password = redisConfig.getRedisEnterprisePassword();
-    String persistence = redisConfig.getDataPersistence();
     int port = redisConfig.getRedisEnterpriseApiPort();
-    int dbPort = redisConfig.getRedisPort();
-    long memory = redisConfig.getRedisEnterpriseMemory();
-    int shards = redisConfig.getRedisEnterpriseShards();
-    String placement = redisConfig.getRedisEnterpriseShardPlacement();
     boolean enterpriseDb = redisConfig.isEnterpriseDb();
-    boolean replication = redisConfig.getRedisEnterpriseReplication();
 
     if (!enterpriseDb) {
       logger.info("Skipping database creation on {}:{}", hostname, port);
@@ -59,7 +53,7 @@ public final class CreateDatabase {
 
     String endpoint = "/v1/bdbs";
     String dbGetEndpoint = String.format("/v1/bdbs/%d", dBUid);
-    ObjectNode body = getSettings(dBUid, dbPort, memory, shards, placement, persistence, replication);
+    ObjectNode body = getSettings(redisConfig);
     try {
       client.post(endpoint, body).validate().json();
       if (!client.waitForJsonValue(dbGetEndpoint, "status", "active", 120)) {
@@ -93,18 +87,21 @@ public final class CreateDatabase {
     }
   }
 
-  public static ObjectNode getSettings(int uid, int port, long memory, int shards, String placement, String persistence, boolean replication) {
+  public static ObjectNode getSettings(RedisConfig redisConfig) {
     ObjectNode body = mapper.createObjectNode();
+    int cpuCount = Math.max(1, redisConfig.getRedisEnterpriseCpuCount() - 2);
+    int workers = Math.max(1, Math.round(cpuCount * 0.66666667f));
+    logger.info("Using {} workers for Search QPF", workers);
 
-    body.put("memory_size", memory);
+    body.put("memory_size", redisConfig.getRedisEnterpriseMemory());
     body.put("name", "ycsb");
-    body.put("port", port);
+    body.put("port", redisConfig.getRedisPort());
     body.put("proxy_policy", "all-master-shards");
-    body.put("shards_count", shards);
+    body.put("shards_count", redisConfig.getRedisEnterpriseShards());
     body.put("type", "redis");
-    body.put("uid", uid);
+    body.put("uid", redisConfig.getRedisEnterpriseDbUid());
 
-    switch (persistence.toUpperCase()) {
+    switch (redisConfig.getDataPersistence().toUpperCase()) {
       case "AOF":
         body.put("data_persistence", "aof");
         body.put("aof_policy", "appendfsync-every-sec");
@@ -126,7 +123,7 @@ public final class CreateDatabase {
     ArrayNode modulesList = new ArrayNode(mapper.getNodeFactory());
     ObjectNode search = mapper.createObjectNode();
     search.put("module_name", "search");
-    search.put("module_args", "WORKERS 6");
+    search.put("module_args", String.format("WORKERS %d", workers));
     modulesList.add(search);
     ObjectNode json = mapper.createObjectNode();
     json.put("module_name", "ReJSON");
@@ -136,9 +133,9 @@ public final class CreateDatabase {
     body.put("sched_policy", "mnp");
     body.put("conns", 32);
 
-    if (shards > 1) {
+    if (redisConfig.getRedisEnterpriseShards() > 1) {
       body.put("sharding", true);
-      if (placement.equalsIgnoreCase("SPARSE")) {
+      if (redisConfig.getRedisEnterpriseShardPlacement().equalsIgnoreCase("SPARSE")) {
           body.put("shards_placement", "sparse");
       }  else {
           body.put("shards_placement", "dense");
@@ -153,7 +150,7 @@ public final class CreateDatabase {
       body.set("shard_key_regex", shardKeyRegex);
     }
 
-    if (replication) {
+    if (redisConfig.getRedisEnterpriseReplication()) {
         body.put("replication", true);
     }
 
