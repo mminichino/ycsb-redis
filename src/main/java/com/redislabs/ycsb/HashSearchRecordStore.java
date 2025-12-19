@@ -4,8 +4,8 @@ import com.codelry.util.ycsb.ByteIterator;
 import com.codelry.util.ycsb.Status;
 import com.codelry.util.ycsb.StringByteIterator;
 
-import com.redis.lettucemod.RedisModulesClient;
-import com.redis.lettucemod.api.StatefulRedisModulesConnection;
+import io.lettuce.core.RedisClient;
+import io.lettuce.core.api.async.RedisAsyncCommands;
 import io.lettuce.core.search.SearchReply;
 
 import java.util.*;
@@ -13,7 +13,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,12 +21,12 @@ public class HashSearchRecordStore implements RecordStore {
 
   private static final AtomicInteger THREADS = new AtomicInteger(0);
   private static final Object INIT_COORDINATOR = new Object();
-  private static GenericObjectPool<StatefulRedisModulesConnection<String, String>> pool;
-  private static RedisModulesClient client;
+  private static RedisClient client;
+  private static RedisAsyncCommands<String, String> redis;
 
   private final String indexName;
 
-  HashSearchRecordStore(RedisConfig redisConfig, int poolMaxSize) {
+  HashSearchRecordStore(RedisConfig redisConfig) {
     synchronized (INIT_COORDINATOR) {
       THREADS.incrementAndGet();
       if (client == null) {
@@ -35,8 +34,8 @@ public class HashSearchRecordStore implements RecordStore {
 
         RedisClientBuilder clientBuilder = new RedisClientBuilder.Builder().redisConfig(redisConfig).build();
 
-        client = clientBuilder.getModulesClient();
-        pool = clientBuilder.getModulesPool(client, poolMaxSize);
+        client = clientBuilder.getClient();
+        redis = client.connect().async();
       }
     }
 
@@ -53,9 +52,7 @@ public class HashSearchRecordStore implements RecordStore {
       int count = THREADS.decrementAndGet();
       if (client != null && count == 0) {
         logger.debug("Shutting down Redis client");
-        pool.close();
         client.shutdown();
-        pool = null;
         client = null;
       }
     }
@@ -63,9 +60,9 @@ public class HashSearchRecordStore implements RecordStore {
 
   @Override
   public Status read(String table, String key, Set<String> fields, Map<String, ByteIterator> result) {
-    Map<String, String> map;
-    try (StatefulRedisModulesConnection<String, String> connection = pool.borrowObject()) {
-      map = connection.sync().hgetall(key);
+    final Map<String, String> map;
+    try {
+      map = redis.hgetall(key).toCompletableFuture().join();
     } catch (Exception e) {
       logger.error("Error during Hash read: {}", e.getMessage(), e);
       return Status.ERROR;
@@ -89,8 +86,8 @@ public class HashSearchRecordStore implements RecordStore {
     Map<String, String> map = StringByteIterator.getStringMap(values);
     map.put("id", keyNumber(key));
 
-    try (StatefulRedisModulesConnection<String, String> connection = pool.borrowObject()) {
-      result = connection.sync().hmset(key, map);
+    try {
+      result = redis.hmset(key, map).toCompletableFuture().join();
     } catch (Exception e) {
       logger.error("Error during Hash insert: {}", e.getMessage(), e);
       return Status.ERROR;
@@ -105,8 +102,8 @@ public class HashSearchRecordStore implements RecordStore {
     Map<String, String> map = StringByteIterator.getStringMap(values);
     map.put("id", keyNumber(key));
 
-    try (StatefulRedisModulesConnection<String, String> connection = pool.borrowObject()) {
-      result = connection.sync().hmset(key, map);
+    try {
+      result = redis.hmset(key, map).toCompletableFuture().join();
     } catch (Exception e) {
       logger.error("Error during Hash update: {}", e.getMessage(), e);
       return Status.ERROR;
@@ -119,8 +116,8 @@ public class HashSearchRecordStore implements RecordStore {
   public Status delete(String table, String key) {
     Long result;
 
-    try (StatefulRedisModulesConnection<String, String> connection = pool.borrowObject()) {
-      result = connection.sync().del(key);
+    try {
+      result = redis.del(key).toCompletableFuture().join();
     } catch (Exception e) {
       logger.error("Error during Hash delete: {}", e.getMessage(), e);
       return Status.ERROR;
@@ -132,11 +129,11 @@ public class HashSearchRecordStore implements RecordStore {
   @Override
   public Status scan(String table, String key, int count, Set<String> fields,
                      Vector<HashMap<String, ByteIterator>> result) {
-    try (StatefulRedisModulesConnection<String, String> connection = pool.borrowObject()) {
+    try {
       String query = String.format("@id:[%s +inf] LIMIT 0 %d", keyNumber(key), count);
 
       CompletableFuture<SearchReply<String, String>> searchFuture =
-          connection.async().ftSearch(indexName, query).toCompletableFuture();
+          redis.ftSearch(indexName, query).toCompletableFuture();
 
       SearchReply<String, String> searchResult = searchFuture.join();
 
@@ -148,7 +145,7 @@ public class HashSearchRecordStore implements RecordStore {
         CompletableFuture<HashMap<String, ByteIterator>> fetchFuture;
         if (fields == null) {
           fetchFuture =
-              connection.async().hgetall(docId)
+              redis.hgetall(docId)
                   .toCompletableFuture()
                   .thenApply(map -> {
                     HashMap<String, ByteIterator> values = new HashMap<>(map.size());
@@ -157,7 +154,7 @@ public class HashSearchRecordStore implements RecordStore {
                   });
         } else {
           fetchFuture =
-              connection.async().hgetall(docId)
+              redis.hgetall(docId)
                   .toCompletableFuture()
                   .thenApply(map -> {
                     Map<String, String> subset = map.entrySet().stream()

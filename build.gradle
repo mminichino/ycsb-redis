@@ -10,7 +10,7 @@ plugins {
 }
 
 group = 'com.redislabs.ycsb'
-version = '1.0.1'
+version = '1.1.0'
 
 repositories {
     mavenCentral()
@@ -21,13 +21,16 @@ dependencies {
     implementation 'com.codelry.util:restfull-core:1.0.2'
     implementation 'com.fasterxml.jackson.core:jackson-core:2.19.2'
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.19.2'
-    implementation 'io.lettuce:lettuce-core:6.8.0.RELEASE'
-    implementation 'com.redis:lettucemod:4.4.0'
+    implementation 'io.lettuce:lettuce-core:6.8.2.RELEASE'
+    implementation 'com.redis:lettucemod:4.5.0'
     implementation 'org.apache.commons:commons-pool2:2.12.1'
     implementation 'io.netty:netty-resolver-dns-native-macos:4.2.4.Final:osx-aarch_64'
     implementation 'io.netty:netty-resolver-dns-native-macos:4.2.4.Final:osx-x86_64'
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation platform('org.testcontainers:testcontainers-bom:2.0.3')
+    testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+    testImplementation 'org.testcontainers:testcontainers'
 }
 
 java {

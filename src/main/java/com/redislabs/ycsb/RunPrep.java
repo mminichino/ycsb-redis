@@ -5,17 +5,16 @@ import com.codelry.util.ycsb.TestSetup;
 import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import com.redis.lettucemod.api.sync.RedisModulesCommands;
-import com.redis.lettucemod.search.CreateOptions;
-import com.redis.lettucemod.search.Field;
-import com.redis.lettucemod.search.NumericField;
+import io.lettuce.core.search.arguments.CreateArgs;
+import io.lettuce.core.search.arguments.FieldArgs;
+import io.lettuce.core.search.arguments.NumericFieldArgs;
 import io.lettuce.core.RedisCommandExecutionException;
 import io.lettuce.core.RedisURI;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Properties;
-import java.util.Scanner;
+import java.util.*;
 
 public final class RunPrep extends TestSetup {
 
@@ -55,8 +54,6 @@ public final class RunPrep extends TestSetup {
   }
 
   public static void testPrep(RedisConfig redisConfig) {
-    boolean enterpriseDb = redisConfig.isEnterpriseDb();
-
     RedisURI redisURI = redisConfig.getRedisURI();
     RedisModulesClient modulesClient = RedisModulesClient.create(redisURI);
     StatefulRedisModulesConnection<String, String> modulesConnection = modulesClient.connect();
@@ -73,21 +70,18 @@ public final class RunPrep extends TestSetup {
       System.exit(1);
     }
 
-    if (!enterpriseDb) {
-      logger.info("Skipping index creation");
-      return;
-    }
-
     try {
       if (searchStrategy.equals("JSON")) {
-        NumericField<String> idJsonField = Field.numeric("$.id").as("id").build();
+        List<FieldArgs<String>> schema = Collections.singletonList(
+            NumericFieldArgs.<String>builder().name("$.id").as("id").build()
+        );
 
-        CreateOptions<String, String> optionsJson = CreateOptions.<String, String>builder()
-            .on(CreateOptions.DataType.JSON)
-            .prefix("user")
+        CreateArgs<String, String> createArgs = CreateArgs.<String, String>builder()
+            .on(CreateArgs.TargetType.JSON)
+            .withPrefix("user")
             .build();
 
-        String resultJson = ftCreateSafe(modulesCommands, jsonIndexName, optionsJson, idJsonField);
+        String resultJson = modulesCommands.ftCreate(jsonIndexName, createArgs, schema);
         if (resultJson.equals("OK")) {
           logger.info("JSON Index {} created", jsonIndexName);
         } else {
@@ -95,14 +89,16 @@ public final class RunPrep extends TestSetup {
           System.exit(1);
         }
       } else if (searchStrategy.equals("HASH")) {
-        NumericField<String> idHashField = Field.numeric("id").as("id").build();
+        List<FieldArgs<String>> schema = Collections.singletonList(
+            NumericFieldArgs.<String>builder().name("id").as("id").build()
+        );
 
-        CreateOptions<String, String> optionsHash = CreateOptions.<String, String>builder()
-            .on(CreateOptions.DataType.HASH)
-            .prefix("user")
+        CreateArgs<String, String> createArgs = CreateArgs.<String, String>builder()
+            .on(CreateArgs.TargetType.HASH)
+            .withPrefix("user")
             .build();
 
-        String resultHash = ftCreateSafe(modulesCommands, hashIndexName, optionsHash, idHashField);
+        String resultHash = modulesCommands.ftCreate(hashIndexName, createArgs, schema);
         if (resultHash.equals("OK")) {
           logger.info("Hash Index {} created", hashIndexName);
         } else {
@@ -118,14 +114,6 @@ public final class RunPrep extends TestSetup {
       logger.error("Error creating index: {}", e.getMessage(), e);
       System.exit(1);
     }
-  }
-
-  @SafeVarargs
-  private static String ftCreateSafe(RedisModulesCommands<String, String> commands,
-                                          String index,
-                                          CreateOptions<String, String> options,
-                                          Field<String>... fields) {
-    return commands.ftCreate(index, options, fields);
   }
 
   public RunPrep() {

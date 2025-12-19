@@ -25,7 +25,6 @@ public class RedisClientBinding extends DB {
   private static final Logger logger = LoggerFactory.getLogger(RedisClientBinding.class);
 
   private static final String PROPERTY_FILE = "db.properties";
-  public static final String THREAD_COUNT_PROPERTY = "threadcount";
 
   private RecordStore recordStore;
 
@@ -50,19 +49,12 @@ public class RedisClientBinding extends DB {
     properties.putAll(getProperties());
 
     RedisConfig redisConfig = new RedisConfig(properties);
-    boolean enterpriseDb = redisConfig.isEnterpriseDb();
-    String searchStrategy = redisConfig.getSearchStrategy();
-    int threadCount = Integer.parseInt(properties.getProperty(THREAD_COUNT_PROPERTY, "32"));
 
     try {
-      if (enterpriseDb) {
-        if (searchStrategy.equals("JSON")) {
-          recordStore = new JsonRecordStore(redisConfig, threadCount);
-        } else {
-          recordStore = new HashSearchRecordStore(redisConfig, threadCount);
-        }
+      if (redisConfig.isOssClusterEnabled()) {
+        recordStore = new HashClusterSearchRecordStore(redisConfig);
       } else {
-        recordStore = new HashRecordStore(redisConfig, threadCount);
+        recordStore = new HashSearchRecordStore(redisConfig);
       }
     } catch (Exception e) {
       logger.error("Error connecting to Redis: {}", e.getMessage());

@@ -6,7 +6,7 @@ import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
-class TestRunClean {
+class TestRunClean extends RedisTest {
 
   @Test
   void runTestClean() {

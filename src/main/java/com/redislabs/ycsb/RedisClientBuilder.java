@@ -4,6 +4,8 @@ import com.redis.lettucemod.RedisModulesClient;
 import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import io.lettuce.core.ClientOptions;
 import io.lettuce.core.RedisClient;
+import io.lettuce.core.cluster.ClusterClientOptions;
+import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.support.ConnectionPoolSupport;
@@ -14,6 +16,7 @@ public class RedisClientBuilder {
 
   private final RedisConfig redisConfig;
   private final ClientOptions clientOptions;
+  private final ClusterClientOptions clusterClientOptions;
   private final int maxIdle;
   private final int minIdle;
 
@@ -55,6 +58,10 @@ public class RedisClientBuilder {
     clientOptions = ClientOptions.builder()
         .autoReconnect(true)
         .build();
+
+    clusterClientOptions = ClusterClientOptions.builder()
+        .autoReconnect(true)
+        .build();
   }
 
   public RedisURI getRedisURI() {
@@ -70,6 +77,12 @@ public class RedisClientBuilder {
   public RedisClient getClient() {
     RedisClient client = RedisClient.create(getRedisURI());
     client.setOptions(clientOptions);
+    return client;
+  }
+
+  public RedisClusterClient getClusterClient() {
+    RedisClusterClient client = RedisClusterClient.create(getRedisURI());
+    client.setOptions(clusterClientOptions);
     return client;
   }
 
