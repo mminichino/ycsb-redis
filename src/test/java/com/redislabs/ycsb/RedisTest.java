@@ -9,7 +9,7 @@ public abstract class RedisTest {
   static final GenericContainer<?> REDIS_CONTAINER =
       new GenericContainer(DockerImageName.parse("redis:latest")) {
         {
-          addFixedExposedPort(12000, 6379);
+          addFixedExposedPort(6379, 6379);
         }
       };
 
