@@ -1,16 +1,17 @@
 package com.redislabs.ycsb;
 
-import com.redis.lettucemod.RedisModulesClient;
-import com.redis.lettucemod.api.StatefulRedisModulesConnection;
 import io.lettuce.core.ClientOptions;
 import io.lettuce.core.RedisClient;
-import io.lettuce.core.cluster.ClusterClientOptions;
-import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.api.StatefulRedisConnection;
+import io.lettuce.core.cluster.ClusterClientOptions;
+import io.lettuce.core.cluster.RedisClusterClient;
+import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
 import io.lettuce.core.support.ConnectionPoolSupport;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+
+import java.util.List;
 
 public class RedisClientBuilder {
 
@@ -68,12 +69,6 @@ public class RedisClientBuilder {
     return this.redisConfig.getRedisURI();
   }
 
-  public RedisModulesClient getModulesClient() {
-    RedisModulesClient client = RedisModulesClient.create(getRedisURI());
-    client.setOptions(clientOptions);
-    return client;
-  }
-
   public RedisClient getClient() {
     RedisClient client = RedisClient.create(getRedisURI());
     client.setOptions(clientOptions);
@@ -81,21 +76,15 @@ public class RedisClientBuilder {
   }
 
   public RedisClusterClient getClusterClient() {
-    RedisClusterClient client = RedisClusterClient.create(getRedisURI());
+    List<RedisURI> uris = redisConfig.getClusterRedisURIs();
+    RedisClusterClient client = RedisClusterClient.create(uris);
     client.setOptions(clusterClientOptions);
     return client;
   }
 
-  public GenericObjectPool<StatefulRedisModulesConnection<String, String>> getModulesPool(RedisModulesClient client, int poolMaxSize) {
-    GenericObjectPoolConfig<StatefulRedisModulesConnection<String, String>> poolConfig = new GenericObjectPoolConfig<>();
-
-    poolConfig.setMaxTotal(poolMaxSize);
-    poolConfig.setMaxIdle(maxIdle);
-    poolConfig.setMinIdle(minIdle);
-    poolConfig.setTestOnBorrow(true);
-    poolConfig.setTestOnReturn(true);
-    poolConfig.setTestWhileIdle(true);
-    poolConfig.setBlockWhenExhausted(true);
+  public GenericObjectPool<StatefulRedisConnection<String, String>> getPool(RedisClient client, int poolMaxSize) {
+    GenericObjectPoolConfig<StatefulRedisConnection<String, String>> poolConfig = new GenericObjectPoolConfig<>();
+    configurePool(poolConfig, poolMaxSize);
 
     return ConnectionPoolSupport.createGenericObjectPool(
         client::connect,
@@ -103,20 +92,25 @@ public class RedisClientBuilder {
     );
   }
 
-  public GenericObjectPool<StatefulRedisConnection<String, String>> getPool(RedisClient client, int poolMaxSize) {
-    GenericObjectPoolConfig<StatefulRedisConnection<String, String>> poolConfig = new GenericObjectPoolConfig<>();
-
-    poolConfig.setMaxTotal(poolMaxSize);
-    poolConfig.setMaxIdle(maxIdle);
-    poolConfig.setMinIdle(minIdle);
-    poolConfig.setTestOnBorrow(true);
-    poolConfig.setTestOnReturn(true);
-    poolConfig.setTestWhileIdle(true);
-    poolConfig.setBlockWhenExhausted(true);
+  public GenericObjectPool<StatefulRedisClusterConnection<String, String>> getClusterPool(
+      RedisClusterClient client, int poolMaxSize) {
+    GenericObjectPoolConfig<StatefulRedisClusterConnection<String, String>> poolConfig =
+        new GenericObjectPoolConfig<>();
+    configurePool(poolConfig, poolMaxSize);
 
     return ConnectionPoolSupport.createGenericObjectPool(
         client::connect,
         poolConfig
     );
+  }
+
+  private <T> void configurePool(GenericObjectPoolConfig<T> poolConfig, int poolMaxSize) {
+    poolConfig.setMaxTotal(poolMaxSize);
+    poolConfig.setMaxIdle(Math.min(maxIdle, poolMaxSize));
+    poolConfig.setMinIdle(Math.min(minIdle, poolMaxSize));
+    poolConfig.setTestOnBorrow(false);
+    poolConfig.setTestOnReturn(false);
+    poolConfig.setTestWhileIdle(true);
+    poolConfig.setBlockWhenExhausted(true);
   }
 }

@@ -1,7 +1,5 @@
 package com.redislabs.ycsb;
 
-import io.lettuce.core.*;
-
 import com.codelry.util.ycsb.ByteIterator;
 import com.codelry.util.ycsb.DB;
 import com.codelry.util.ycsb.DBException;
@@ -9,7 +7,11 @@ import com.codelry.util.ycsb.Status;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
+import java.util.Vector;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,12 +51,14 @@ public class RedisClientBinding extends DB {
     properties.putAll(getProperties());
 
     RedisConfig redisConfig = new RedisConfig(properties);
+    int threadCount = Integer.parseInt(properties.getProperty("threadcount", "32"));
+    int poolMaxSize = Math.min(threadCount, 64);
 
     try {
       if (redisConfig.isOssClusterEnabled()) {
-        recordStore = new HashClusterSearchRecordStore(redisConfig);
+        recordStore = new HashClusterRecordStore(redisConfig, poolMaxSize);
       } else {
-        recordStore = new HashSearchRecordStore(redisConfig);
+        recordStore = new HashRecordStore(redisConfig, poolMaxSize);
       }
     } catch (Exception e) {
       logger.error("Error connecting to Redis: {}", e.getMessage());

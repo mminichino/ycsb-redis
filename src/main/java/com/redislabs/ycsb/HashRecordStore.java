@@ -4,15 +4,21 @@ import com.codelry.util.ycsb.ByteIterator;
 import com.codelry.util.ycsb.Status;
 import com.codelry.util.ycsb.StringByteIterator;
 
+import io.lettuce.core.Limit;
 import io.lettuce.core.Range;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.api.StatefulRedisConnection;
+import io.lettuce.core.api.async.RedisAsyncCommands;
+import io.lettuce.core.api.sync.RedisCommands;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.Vector;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.slf4j.Logger;
@@ -22,7 +28,6 @@ public class HashRecordStore implements RecordStore {
   private static final Logger logger = LoggerFactory.getLogger(HashRecordStore.class);
 
   private static final AtomicInteger THREADS = new AtomicInteger(0);
-  private static final AtomicLong COUNTER = new AtomicLong(0);
   private static final Object INIT_COORDINATOR = new Object();
   private static GenericObjectPool<StatefulRedisConnection<String, String>> pool;
   private static RedisClient client;
@@ -33,28 +38,19 @@ public class HashRecordStore implements RecordStore {
     synchronized (INIT_COORDINATOR) {
       THREADS.incrementAndGet();
       if (client == null) {
-        logger.debug("Initializing Redis client: datatype: Hash, index: Set");
+        logger.info("Initializing Redis client: datatype: Hash, index: Sorted Set");
 
         RedisClientBuilder clientBuilder = new RedisClientBuilder.Builder().redisConfig(redisConfig).build();
-
         client = clientBuilder.getClient();
-        pool = clientBuilder.getPool(client, poolMaxSize);
+        pool = clientBuilder.getPool(client, Math.max(poolMaxSize, 8));
       }
     }
 
     this.indexName = redisConfig.getIndexSet();
   }
 
-  public void addKeyToIndex(StatefulRedisConnection<String, String> connection, String key) {
-    connection.sync().zadd(indexName, COUNTER.incrementAndGet(), key);
-  }
-
-  public void removeKeyFromIndex(StatefulRedisConnection<String, String> connection, String key) {
-    connection.sync().zrem(indexName, key);
-  }
-
-  public List<String> scanKeys(StatefulRedisConnection<String, String> connection, double id, int count) {
-    return connection.sync().zrangebyscore(indexName, Range.create(id, id + count - 1));
+  private static double hash(String key) {
+    return key.hashCode();
   }
 
   @Override
@@ -73,20 +69,22 @@ public class HashRecordStore implements RecordStore {
 
   @Override
   public Status read(String table, String key, Set<String> fields, Map<String, ByteIterator> result) {
-    Map<String, String> map;
+    final Map<String, String> hash;
     try (StatefulRedisConnection<String, String> connection = pool.borrowObject()) {
-      map = connection.sync().hgetall(key);
+      hash = connection.sync().hgetall(key);
     } catch (Exception e) {
       logger.error("Error during Hash read: {}", e.getMessage(), e);
       return Status.ERROR;
     }
 
+    Map<String, ByteIterator> map = StringByteIterator.getByteIteratorMap(hash);
     if (fields == null) {
-      StringByteIterator.putAllAsByteIterators(result, map);
+      result.putAll(map);
     } else {
-      for (Map.Entry<String, String> entry : map.entrySet()) {
-        if (fields.contains(entry.getKey())) {
-          result.put(entry.getKey(), new StringByteIterator(entry.getValue()));
+      for (String field : fields) {
+        ByteIterator value = map.get(field);
+        if (value != null) {
+          result.put(field, value);
         }
       }
     }
@@ -95,12 +93,13 @@ public class HashRecordStore implements RecordStore {
 
   @Override
   public Status insert(String table, String key, Map<String, ByteIterator> values) {
-    String result;
     Map<String, String> map = StringByteIterator.getStringMap(values);
+    String result;
 
     try (StatefulRedisConnection<String, String> connection = pool.borrowObject()) {
-      result = connection.sync().hmset(key, map);
-      addKeyToIndex(connection, key);
+      RedisCommands<String, String> sync = connection.sync();
+      result = sync.hmset(key, map);
+      sync.zadd(indexName, hash(key), key);
     } catch (Exception e) {
       logger.error("Error during Hash insert: {}", e.getMessage(), e);
       return Status.ERROR;
@@ -111,8 +110,8 @@ public class HashRecordStore implements RecordStore {
 
   @Override
   public Status update(String table, String key, Map<String, ByteIterator> values) {
-    String result;
     Map<String, String> map = StringByteIterator.getStringMap(values);
+    String result;
 
     try (StatefulRedisConnection<String, String> connection = pool.borrowObject()) {
       result = connection.sync().hmset(key, map);
@@ -126,66 +125,63 @@ public class HashRecordStore implements RecordStore {
 
   @Override
   public Status delete(String table, String key) {
-    Long result;
+    Long deleted;
+    Long removed;
 
     try (StatefulRedisConnection<String, String> connection = pool.borrowObject()) {
-      result = connection.sync().del(key);
-      removeKeyFromIndex(connection, key);
+      RedisCommands<String, String> sync = connection.sync();
+      deleted = sync.del(key);
+      removed = sync.zrem(indexName, key);
     } catch (Exception e) {
       logger.error("Error during Hash delete: {}", e.getMessage(), e);
       return Status.ERROR;
     }
 
-    return result.equals(0L) ? Status.ERROR : Status.OK;
+    return deleted == 0L && removed == 0L ? Status.ERROR : Status.OK;
   }
 
   @Override
-  public Status scan(String table, String key, int count, Set<String> fields,
+  public Status scan(String table, String startkey, int count, Set<String> fields,
                      Vector<HashMap<String, ByteIterator>> result) {
     try (StatefulRedisConnection<String, String> connection = pool.borrowObject()) {
-      double id = connection.sync().zscore(indexName, key);
-      List<String> keys = scanKeys(connection, id, count);
+      Range<Double> range = Range.from(
+          Range.Boundary.including(hash(startkey)),
+          Range.Boundary.unbounded());
 
-      if (keys.isEmpty()) {
+      List<String> keys = connection.reactive()
+          .zrangebyscore(indexName, range, Limit.create(0, count))
+          .collectList()
+          .block();
+
+      if (keys == null || keys.isEmpty()) {
         return Status.OK;
       }
 
+      RedisAsyncCommands<String, String> async = connection.async();
       List<CompletableFuture<HashMap<String, ByteIterator>>> futures = new ArrayList<>(keys.size());
 
-      for (String k : keys) {
-        if (fields == null) {
-          futures.add(
-              connection.async().hgetall(k).toCompletableFuture()
-                  .thenApply(map -> {
-                    HashMap<String, ByteIterator> values = new HashMap<>(map.size());
-                    StringByteIterator.putAllAsByteIterators(values, map);
-                    return values;
-                  })
-          );
-        } else {
-          futures.add(
-              connection.async().hgetall(k).toCompletableFuture()
-                  .thenApply(map -> {
-                    Map<String, String> subset = map.entrySet().stream()
-                        .filter(entry -> fields.contains(entry.getKey()))
-                        .collect(Collectors.toMap(
-                            Map.Entry::getKey,
-                            Map.Entry::getValue
-                        ));
-                    HashMap<String, ByteIterator> values = new HashMap<>();
-                    StringByteIterator.putAllAsByteIterators(values, subset);
-                    return values;
-                  })
-          );
-        }
+      for (String key : keys) {
+        futures.add(async.hgetall(key).toCompletableFuture().thenApply(hash -> {
+          Map<String, ByteIterator> map = StringByteIterator.getByteIteratorMap(hash);
+          HashMap<String, ByteIterator> values = new HashMap<>();
+          if (fields == null) {
+            values.putAll(map);
+          } else {
+            for (String field : fields) {
+              ByteIterator value = map.get(field);
+              if (value != null) {
+                values.put(field, value);
+              }
+            }
+          }
+          return values;
+        }));
       }
 
       CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-
-      for (CompletableFuture<HashMap<String, ByteIterator>> f : futures) {
-        result.add(f.join());
+      for (CompletableFuture<HashMap<String, ByteIterator>> future : futures) {
+        result.add(future.join());
       }
-
       return Status.OK;
     } catch (Exception e) {
       logger.error("Error during Hash scan: {}", e.getMessage(), e);

@@ -1,22 +1,30 @@
 package com.redislabs.ycsb;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.utility.DockerImageName;
-import org.junit.jupiter.api.BeforeAll;
 
 public abstract class RedisTest {
 
-  static final GenericContainer<?> REDIS_CONTAINER =
-      new GenericContainer(DockerImageName.parse("redis:latest")) {
-        {
-          addFixedExposedPort(6379, 6379);
-        }
-      };
+  protected GenericContainer<?> redis;
 
-  @BeforeAll
-  static void startContainer() {
-    if (!REDIS_CONTAINER.isRunning()) {
-      REDIS_CONTAINER.start();
+  @BeforeEach
+  void startRedis() {
+    redis = new GenericContainer<>(DockerImageName.parse("redis:8.6"))
+        .withExposedPorts(6379);
+    redis.start();
+    System.setProperty(RedisConfig.REDIS_HOST, redis.getHost());
+    System.setProperty(RedisConfig.REDIS_PORT, String.valueOf(redis.getMappedPort(6379)));
+  }
+
+  @AfterEach
+  void stopRedis() {
+    System.clearProperty(RedisConfig.REDIS_HOST);
+    System.clearProperty(RedisConfig.REDIS_PORT);
+    if (redis != null) {
+      redis.stop();
+      redis = null;
     }
   }
 }
