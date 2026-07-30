@@ -51,8 +51,7 @@ public class RedisClientBinding extends DB {
     properties.putAll(getProperties());
 
     RedisConfig redisConfig = new RedisConfig(properties);
-    int threadCount = Integer.parseInt(properties.getProperty("threadcount", "32"));
-    int poolMaxSize = Math.min(threadCount, 64);
+    int poolMaxSize = redisConfig.getPoolSize();
 
     try {
       if (redisConfig.isOssClusterEnabled()) {

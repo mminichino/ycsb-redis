@@ -27,6 +27,7 @@ public class RedisConfig {
   private boolean ossClusterEnabled;
   private String dataPersistence;
   private String indexSet;
+  private int poolSize;
   private List<String> clusterHosts = Collections.emptyList();
 
   private String confirmationResponse;
@@ -40,6 +41,7 @@ public class RedisConfig {
   public static final String REDIS_OSS_CLUSTER = "redis.oss.cluster";
   public static final String REDIS_DATA_PERSISTENCE = "redis.data.persistence";
   public static final String REDIS_INDEX_SET = "redis.index.set";
+  public static final String REDIS_POOL_SIZE = "redis.pool.size";
   public static final String REDIS_CLUSTER_HOST_PREFIX = "redis.cluster.host.";
 
   public static final String REDIS_HOST_ENV_VAR = "REDIS_HOST";
@@ -76,6 +78,7 @@ public class RedisConfig {
     this.ossClusterEnabled = Boolean.parseBoolean(properties.getProperty(REDIS_OSS_CLUSTER, "false"));
     this.dataPersistence = properties.getProperty(REDIS_DATA_PERSISTENCE, "AOF");
     this.indexSet = properties.getProperty(REDIS_INDEX_SET, "_key_index");
+    this.poolSize = Integer.parseInt(properties.getProperty(REDIS_POOL_SIZE, "64"));
     this.confirmationResponse = properties.getProperty(TEST_CONFIRMATION_RESPONSE);
     this.clusterHosts = parseClusterHosts(properties);
 
@@ -190,6 +193,10 @@ public class RedisConfig {
 
   public String getIndexSet() {
     return indexSet;
+  }
+
+  public int getPoolSize() {
+    return poolSize;
   }
 
   public List<String> getClusterHosts() {

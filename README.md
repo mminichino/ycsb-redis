@@ -1,4 +1,4 @@
-# Redis YCSB 2.0.0
+# Redis YCSB 2.0.1
 This package is a YCSB implementation to test Redis. It is based on YCSB core 0.18.4.
 
 ## Requirements
@@ -11,13 +11,13 @@ This package is a YCSB implementation to test Redis. It is based on YCSB core 0.
 ### 2. Set up YCSB
 Download the distribution to begin testing.
 ```
-curl -OLs https://github.com/mminichino/ycsb-redis/releases/download/v2.0.0/ycsb-redis-2.0.0.zip
+curl -OLs https://github.com/mminichino/ycsb-redis/releases/download/v2.0.1/ycsb-redis-2.0.1.zip
 ```
 ```
-unzip ycsb-redis-2.0.0.zip
+unzip ycsb-redis-2.0.1.zip
 ```
 ```
-cd ycsb-redis-2.0.0
+cd ycsb-redis-2.0.1
 ```
 Edit the `conf/db.properties` properties file to configure database settings.<br>
 On Linux/macOS:
