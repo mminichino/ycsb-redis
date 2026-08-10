@@ -1,5 +1,5 @@
-# Redis YCSB 2.0.1
-This package is a YCSB implementation to test Redis. It is based on YCSB core 0.18.4.
+# Couchbase YCSB 2.0.2
+This package is a YCSB implementation to test Redis. It is based on YCSB core 0.18.6.
 
 ## Requirements
 - Java 17 JRE or JDK
@@ -11,7 +11,7 @@ This package is a YCSB implementation to test Redis. It is based on YCSB core 0.
 ### 2. Set up YCSB
 Download the distribution to begin testing.
 ```
-curl -OLs https://github.com/mminichino/ycsb-redis/releases/download/v2.0.1/ycsb-redis-2.0.1.zip
+curl -OLs https://github.com/mminichino/ycsb-redis/releases/download/v2.0.2/ycsb-redis-2.0.2.zip
 ```
 ```
 unzip ycsb-redis-2.0.1.zip
