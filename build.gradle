@@ -81,7 +81,7 @@ tasks.register('updateReadmeAppVersion') {
     def version = project.version.toString()
     doLast {
         def text = readmeFile.getText('UTF-8')
-        text = text.replaceFirst(/(?m)^# Redis YCSB \d+\.\d+\.\d+/, "# Couchbase YCSB ${version}")
+        text = text.replaceFirst(/(?m)^# Redis YCSB \d+\.\d+\.\d+/, "# Redis YCSB ${version}")
         text = text.replaceAll(
                 /releases\/download\/v\d+\.\d+\.\d+\/ycsb-redis-\d+\.\d+\.\d+\.zip/,
                 "releases/download/v${version}/ycsb-redis-${version}.zip"
