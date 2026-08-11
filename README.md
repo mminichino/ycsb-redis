@@ -1,4 +1,4 @@
-# Couchbase YCSB 2.0.2
+# Redis YCSB 2.0.2
 This package is a YCSB implementation to test Redis. It is based on YCSB core 0.18.6.
 
 ## Requirements
